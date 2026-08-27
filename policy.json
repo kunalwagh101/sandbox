@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "profileName": "strict-offline",
+  "sandbox": {
+    "memoryMB": 4096,
+    "networking": "Disable",
+    "vGPU": "Disable",
+    "audioInput": "Disable",
+    "videoInput": "Disable",
+    "clipboardRedirection": "Disable",
+    "printerRedirection": "Disable",
+    "protectedClient": "Enable"
+  },
+  "package": {
+    "product": "Brave Browser",
+    "installerFileName": "BraveBrowserStandaloneSilentSetup.exe",
+    "expectedPublisher": "Brave Software, Inc.",
+    "expectedSha256": "UNINITIALIZED",
+    "expectedVersion": "UNINITIALIZED",
+    "packageRelativePath": "UNINITIALIZED",
+    "initializedAtUtc": "UNINITIALIZED"
+  },
+  "guest": {
+    "provisionScript": "provision.ps1",
+    "provisionScriptSha256": "UNINITIALIZED",
+    "resultFileName": "provision-result.json"
+  }
+}

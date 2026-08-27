@@ -1,0 +1,10 @@
+#!/bin/sh
+set -eu
+
+if command -v py >/dev/null 2>&1; then
+  py -3 -m unittest discover -s tests -v
+  py -3 scripts/verify_board.py
+else
+  python -m unittest discover -s tests -v
+  python scripts/verify_board.py
+fi
