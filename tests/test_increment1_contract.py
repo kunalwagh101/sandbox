@@ -120,6 +120,8 @@ class Increment1ContractTests(unittest.TestCase):
         self.assertIn("Get-AirlockSessionIdAfterStart", self.start)
         self.assertIn("active-session.json", self.start)
         self.assertIn("Write-AirlockJsonAtomic", self.start)
+        self.assertIn("[IO.File]::Replace($temporary, $destination, $backup)", self.common)
+        self.assertNotIn("[IO.File]::Replace($temporary, $destination, $null)", self.common)
         self.assertIn("'start', '--config', $profileXml, '--raw'", self.start)
         self.assertGreaterEqual(self.start.count("Get-FileHash"), 5)
         self.assertIn("provisioning script changed after initialisation", self.start)

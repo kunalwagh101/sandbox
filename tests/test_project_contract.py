@@ -33,6 +33,7 @@ class ProjectContractTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn("python scripts/verify_board.py", workflow)
         self.assertIn("python -m unittest discover -s tests -v", workflow)
+        self.assertEqual(2, workflow.count("fetch-depth: 0"))
         self.assertIn("runs-on: windows-latest", workflow)
         self.assertIn("Language.Parser]::ParseFile", workflow)
         self.assertGreaterEqual(workflow.count("Invoke-SourceAcceptance.ps1"), 2)

@@ -22,10 +22,10 @@
 - Restored the binding 4096 MB ceiling and added executed deliberate-weakening checks for
   every strict Sandbox setting plus the memory boundary.
 - Replaced forced file moves in host JSON/profile writes with same-directory atomic move
-  or replace operations.
+  or replace operations, using a real transient backup path for Windows PowerShell 5.1.
 - Made initialiser `-WhatIf` results say `planned` and `PolicyWritten=false`.
 - Added portable PowerShell source acceptance to Ubuntu CI, Windows PowerShell 5.1 CI,
-  and the pre-push gate.
+  and the pre-push gate; CI now checks out full history so evidence commits resolve.
 
 ### Added
 

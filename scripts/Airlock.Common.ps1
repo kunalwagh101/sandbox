@@ -180,7 +180,20 @@ function Move-AirlockFileAtomic {
         throw 'Atomic replacement requires temporary and destination files in one directory.'
     }
     if (Test-Path -LiteralPath $destination) {
-        [IO.File]::Replace($temporary, $destination, $null)
+        # Windows PowerShell 5.1 cannot reliably bind a null backup path to
+        # File.Replace.  A same-directory backup preserves the atomic replace
+        # contract and is removed only after Replace returns.
+        $backup = Join-Path $destinationParent (
+            '.airlock-' + [Guid]::NewGuid().ToString('N') + '.bak'
+        )
+        try {
+            [IO.File]::Replace($temporary, $destination, $backup)
+        }
+        finally {
+            if (Test-Path -LiteralPath $backup) {
+                Remove-Item -LiteralPath $backup -Force
+            }
+        }
     }
     else {
         [IO.File]::Move($temporary, $destination)
