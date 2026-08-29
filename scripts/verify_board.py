@@ -35,6 +35,7 @@ BASELINE_REQUIREMENT_IDS = frozenset(
     for index in range(1, count + 1)
 )
 BASELINE_REQUIREMENT_COUNT = len(BASELINE_REQUIREMENT_IDS)
+BASELINE_AUDIT_IDS = frozenset(f"AL-{index:02d}" for index in range(1, 24))
 BASELINE_CONTRACT_IDS = frozenset(
     {
         "C-DEL-01",
@@ -188,6 +189,27 @@ def parse_contract_coverage(backlog_text: str) -> Dict[str, Set[str]]:
             raise ValueError(f"duplicate contract coverage row: {row[0]}")
         coverage[row[0]] = set(re.findall(r"S-\d{2}\.\d{2}\.\d{2}", row[1]))
     return coverage
+
+
+def parse_audit_findings(backlog_text: str) -> Tuple[int, Dict[str, str]]:
+    expected_match = re.search(
+        r"^EXPECTED_AUDIT_FINDINGS:\s*(\d+)\s*$", backlog_text, re.MULTILINE
+    )
+    if not expected_match:
+        raise ValueError("PRODUCT_BACKLOG.md lacks EXPECTED_AUDIT_FINDINGS")
+    rows = _table_rows(_marked_section(backlog_text, "AUDIT_START", "AUDIT_END"))
+    findings: Dict[str, str] = {}
+    for row in rows:
+        if len(row) < 3 or not re.fullmatch(r"AL-\d{2}", row[0]):
+            continue
+        finding_id = row[0]
+        if finding_id in findings:
+            raise ValueError(f"duplicate audit finding: {finding_id}")
+        story_ids = re.findall(r"S-\d{2}\.\d{2}\.\d{2}", row[2])
+        if len(story_ids) != 1:
+            raise ValueError(f"{finding_id} must map to exactly one repair story")
+        findings[finding_id] = story_ids[0]
+    return int(expected_match.group(1)), findings
 
 
 def parse_stories(backlog_text: str) -> Dict[str, Story]:
@@ -471,34 +493,91 @@ def _stub_error(path: Path, line_range: Optional[Tuple[int, int]]) -> Optional[s
     if path.suffix.lower() not in CODE_SUFFIXES:
         return None
     lines = path.read_text(encoding="utf-8").splitlines()
-    start, end = line_range or (1, len(lines))
-    selected = lines[start - 1 : end]
-    for offset, line in enumerate(selected, start=start):
+    for offset, line in enumerate(lines, start=1):
         if any(marker in line for marker in STUB_MARKERS):
             return f"stub marker in {path.name}:{offset}"
         if re.fullmatch(r"\s*pass\s*(?:#.*)?", line):
             return f"bare pass stub in {path.name}:{offset}"
+    if path.suffix.lower() in {".ps1", ".psm1"}:
+        source = "\n".join(lines)
+        empty_function = re.search(
+            r"(?ims)^\s*function\s+[A-Za-z_][\w-]*\s*(?:\([^)]*\))?\s*\{\s*\}",
+            source,
+        )
+        if empty_function:
+            line = source[: empty_function.start()].count("\n") + 1
+            return f"empty PowerShell function in {path.name}:{line}"
+        placeholder_throw = re.search(
+            r"(?im)^\s*throw\s+['\"][^'\"]*(?:not\s+(?:yet\s+)?implemented|placeholder)",
+            source,
+        )
+        if placeholder_throw:
+            line = source[: placeholder_throw.start()].count("\n") + 1
+            return f"PowerShell placeholder throw in {path.name}:{line}"
     return None
 
 
 def _commit_resolves(root: Path, commit: str) -> Tuple[bool, str]:
     if not re.fullmatch(r"[0-9a-fA-F]{7,40}", commit):
         return False, f"invalid commit value: {commit}"
-    git_dir = root / ".git"
-    if not git_dir.exists():
-        return True, ""
-    process = subprocess.run(
-        ["git", "cat-file", "-e", f"{commit}^{{commit}}"],
-        cwd=root,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        timeout=10,
-        check=False,
-    )
+    try:
+        repository = subprocess.run(
+            ["git", "rev-parse", "--is-inside-work-tree"],
+            cwd=root,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return False, f"commit unverifiable because Git could not run: {exc}"
+    if repository.returncode != 0 or repository.stdout.strip().lower() != "true":
+        return False, "commit unverifiable: no Git repository"
+    try:
+        process = subprocess.run(
+            ["git", "cat-file", "-e", f"{commit}^{{commit}}"],
+            cwd=root,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return False, f"commit unverifiable because Git could not run: {exc}"
     if process.returncode != 0:
         return False, f"commit does not resolve: {commit}"
     return True, ""
+
+
+def _board_flow_errors(
+    board: Mapping[str, BoardItem], wip_limit: int
+) -> List[str]:
+    errors: List[str] = []
+    in_progress = [item for item in board.values() if item.status == "IN_PROGRESS"]
+    if len(in_progress) > wip_limit:
+        errors.append(
+            f"WIP limit exceeded: {len(in_progress)} stories IN_PROGRESS; limit {wip_limit}"
+        )
+    blocked = [item for item in board.values() if item.status == "BLOCKED"]
+    if blocked and in_progress:
+        un_escalated = sorted(
+            item.story_id for item in blocked if "escalated=" not in item.note.lower()
+        )
+        non_repair = sorted(
+            item.story_id for item in in_progress if "repair-for=" not in item.note.lower()
+        )
+        if un_escalated:
+            errors.append(
+                "blocked stories lack explicit escalation: " + ", ".join(un_escalated)
+            )
+        if non_repair:
+            errors.append(
+                "work pulled beside blockers is not an explicit repair: "
+                + ", ".join(non_repair)
+            )
+    return errors
 
 
 def _unittest_selector(test_ref: str) -> Optional[str]:
@@ -572,6 +651,7 @@ class RepositoryVerifier:
             expected, requirements = parse_requirements(backlog_text)
             coverage = parse_coverage(backlog_text)
             contract_coverage = parse_contract_coverage(backlog_text)
+            expected_audit, audit_findings = parse_audit_findings(backlog_text)
             stories = parse_stories(backlog_text)
             board = parse_board(board_text)
             wip_limit, backlog_approved = parse_board_settings(board_text)
@@ -634,6 +714,21 @@ class RepositoryVerifier:
                     f"{contract_id} maps to unknown stories: {', '.join(missing_stories)}"
                 )
 
+        if expected_audit != len(BASELINE_AUDIT_IDS):
+            errors.append(
+                f"EXPECTED_AUDIT_FINDINGS is {expected_audit}; approved register contains "
+                f"{len(BASELINE_AUDIT_IDS)}"
+            )
+        missing_audit = sorted(BASELINE_AUDIT_IDS - set(audit_findings))
+        unexpected_audit = sorted(set(audit_findings) - BASELINE_AUDIT_IDS)
+        if missing_audit:
+            errors.append(f"orphan audit findings: {', '.join(missing_audit)}")
+        if unexpected_audit:
+            errors.append(f"unexpected audit findings: {', '.join(unexpected_audit)}")
+        for finding_id, story_id in sorted(audit_findings.items()):
+            if story_id not in stories:
+                errors.append(f"{finding_id} maps to unknown repair story: {story_id}")
+
         missing_board = sorted(set(stories) - set(board))
         extra_board = sorted(set(board) - set(stories))
         if missing_board:
@@ -674,16 +769,7 @@ class RepositoryVerifier:
                 errors.append(
                     f"{item.story_id} advanced before BACKLOG_APPROVED became true"
                 )
-        in_progress = [item.story_id for item in board.values() if item.status == "IN_PROGRESS"]
-        if len(in_progress) > wip_limit:
-            errors.append(
-                f"WIP limit exceeded: {len(in_progress)} stories IN_PROGRESS; limit {wip_limit}"
-            )
-        blocked = [item.story_id for item in board.values() if item.status == "BLOCKED"]
-        if blocked and in_progress:
-            errors.append(
-                "work cannot remain IN_PROGRESS while BLOCKED stories await escalation"
-            )
+        errors.extend(_board_flow_errors(board, wip_limit))
         for story_id, story in stories.items():
             if story_id not in board or board[story_id].status not in {
                 "READY",
@@ -713,6 +799,19 @@ class RepositoryVerifier:
                 resolves, _ = _test_ref_resolves(self.root, criterion.test_ref)
                 if resolves:
                     tested_criteria += 1
+        for story_id, item in board.items():
+            if item.status != "BACKLOG" or story_id not in stories:
+                continue
+            implemented_tests = sorted(
+                criterion.test_ref
+                for criterion in stories[story_id].criteria
+                if _test_ref_resolves(self.root, criterion.test_ref)[0]
+            )
+            if implemented_tests:
+                errors.append(
+                    f"{story_id} remains BACKLOG with implemented acceptance tests: "
+                    + ", ".join(implemented_tests)
+                )
         duplicate_criteria = sorted(
             criterion_id
             for criterion_id, count in collections.Counter(all_criterion_ids).items()
@@ -851,7 +950,7 @@ def format_result(result: VerificationResult) -> str:
         else 0.0
     )
     lines.append(
-        "AC TEST COVERAGE: "
+        "AC TESTS RESOLVED: "
         f"{result.tested_criteria}/{result.total_criteria} ({percentage:.1f}%)"
     )
     lines.append(f"NOT BUILT: {len(result.unfinished)}")

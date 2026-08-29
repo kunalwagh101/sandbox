@@ -1,12 +1,17 @@
 from pathlib import Path
+import shutil
+import subprocess
 import tempfile
 import textwrap
 import unittest
 
 from scripts.verify_board import (
+    BoardItem,
     BASELINE_CONTRACT_IDS,
+    BASELINE_AUDIT_IDS,
     BASELINE_REQUIREMENT_IDS,
     RepositoryVerifier,
+    _board_flow_errors,
     format_result,
 )
 
@@ -41,7 +46,22 @@ def _contract_rows(omit_last=False):
     )
 
 
-def _backlog(test_ref=TEST_REF, omit_last_coverage=False, omit_last_contract=False):
+def _audit_rows(omit_last=False):
+    finding_ids = sorted(BASELINE_AUDIT_IDS)
+    if omit_last:
+        finding_ids = finding_ids[:-1]
+    return "\n        ".join(
+        f"| {finding_id} | Fixture | {STORY_ID} | fixture repair |"
+        for finding_id in finding_ids
+    )
+
+
+def _backlog(
+    test_ref=TEST_REF,
+    omit_last_coverage=False,
+    omit_last_contract=False,
+    omit_last_audit=False,
+):
     return textwrap.dedent(
         f"""
         # Backlog
@@ -59,6 +79,14 @@ def _backlog(test_ref=TEST_REF, omit_last_coverage=False, omit_last_contract=Fal
         |---|---|
         {_contract_rows(omit_last_contract)}
         <!-- CONTRACT_COVERAGE_END -->
+
+        EXPECTED_AUDIT_FINDINGS: 23
+
+        <!-- AUDIT_START -->
+        | Finding ID | Severity | Repair story | Repair intent |
+        |---|---|---|---|
+        {_audit_rows(omit_last_audit)}
+        <!-- AUDIT_END -->
 
         ## E-00 — Fixture epic
 
@@ -143,6 +171,7 @@ class FixtureRepository:
         evidence=None,
         omit_last_coverage=False,
         omit_last_contract=False,
+        omit_last_audit=False,
         board_story_id=STORY_ID,
         test_passes=True,
         code="VALUE = 1\n",
@@ -168,13 +197,46 @@ class FixtureRepository:
         )
         (self.root / "scripts" / "sample.py").write_text(code, encoding="utf-8")
         (self.root / "PRODUCT_BACKLOG.md").write_text(
-            _backlog(test_ref, omit_last_coverage, omit_last_contract), encoding="utf-8"
+            _backlog(
+                test_ref,
+                omit_last_coverage,
+                omit_last_contract,
+                omit_last_audit,
+            ),
+            encoding="utf-8",
         )
         board_evidence = evidence
         if board_evidence is None and status == "DONE":
             board_evidence = _evidence(test_ref)
         (self.root / "BOARD.md").write_text(
             _board(status, board_evidence or "", board_story_id), encoding="utf-8"
+        )
+        subprocess.run(["git", "init", "-q"], cwd=self.root, check=True)
+        subprocess.run(
+            ["git", "config", "user.name", "Airlock Test"], cwd=self.root, check=True
+        )
+        subprocess.run(
+            ["git", "config", "user.email", "airlock-test@example.invalid"],
+            cwd=self.root,
+            check=True,
+        )
+        subprocess.run(["git", "add", "."], cwd=self.root, check=True)
+        subprocess.run(
+            ["git", "commit", "-q", "-m", "fixture"], cwd=self.root, check=True
+        )
+        self.commit = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=self.root,
+            check=True,
+            text=True,
+            stdout=subprocess.PIPE,
+        ).stdout.strip()
+        board_path = self.root / "BOARD.md"
+        board_path.write_text(
+            board_path.read_text(encoding="utf-8").replace(
+                "commit: abcdef1", f"commit: {self.commit}"
+            ),
+            encoding="utf-8",
         )
 
     def cleanup(self):
@@ -188,6 +250,10 @@ class VerifierContractTests(unittest.TestCase):
             (
                 FixtureRepository(omit_last_contract=True),
                 "orphan delivery contracts:",
+            ),
+            (
+                FixtureRepository(omit_last_audit=True),
+                "orphan audit findings:",
             ),
             (
                 FixtureRepository(board_story_id="S-00.00.02"),
@@ -237,6 +303,12 @@ class VerifierContractTests(unittest.TestCase):
                 FixtureRepository(status="DONE", code="raise NotImplementedError\n"),
                 "stub marker",
             ),
+            (
+                FixtureRepository(
+                    status="DONE", code="VALUE = 1\n# TODO outside cited range\n"
+                ),
+                "stub marker",
+            ),
         )
         for fixture, expected in cases:
             with self.subTest(expected=expected):
@@ -258,7 +330,8 @@ class VerifierContractTests(unittest.TestCase):
         self.assertIn("OK", result.evidence_outputs[STORY_ID])
         output = format_result(result)
         self.assertIn("DONE=1", output)
-        self.assertIn("AC TEST COVERAGE: 1/1 (100.0%)", output)
+        self.assertIn("AC TESTS RESOLVED: 1/1 (100.0%)", output)
+        self.assertNotIn("AC TEST COVERAGE", output)
         self.assertIn("NOT BUILT: 0", output)
 
         failed_result = RepositoryVerifier(failing.root, run_evidence_tests=True).verify()
@@ -284,6 +357,80 @@ class VerifierContractTests(unittest.TestCase):
         result = RepositoryVerifier(fixture.root, run_evidence_tests=False).verify()
         self.assertFalse(result.ok)
         self.assertIn("must run unittest", "\n".join(result.errors))
+
+    def test_commit_must_resolve_in_git_repository(self):
+        fixture = FixtureRepository(status="DONE")
+        self.addCleanup(fixture.cleanup)
+        shutil.rmtree(fixture.root / ".git")
+        result = RepositoryVerifier(fixture.root, run_evidence_tests=False).verify()
+        self.assertFalse(result.ok)
+        self.assertIn(
+            "commit unverifiable: no Git repository", "\n".join(result.errors)
+        )
+
+    def test_implemented_backlog_story_fails(self):
+        fixture = FixtureRepository(status="BACKLOG")
+        self.addCleanup(fixture.cleanup)
+        result = RepositoryVerifier(fixture.root, run_evidence_tests=False).verify()
+        self.assertFalse(result.ok)
+        self.assertIn(
+            f"{STORY_ID} remains BACKLOG with implemented acceptance tests",
+            "\n".join(result.errors),
+        )
+
+    def test_summary_does_not_overclaim_coverage(self):
+        fixture = FixtureRepository(status="DONE")
+        self.addCleanup(fixture.cleanup)
+        result = RepositoryVerifier(fixture.root, run_evidence_tests=False).verify()
+        output = format_result(result)
+        self.assertIn("AC TESTS RESOLVED", output)
+        self.assertNotIn("AC TEST COVERAGE", output)
+
+    def test_escalated_blocker_requires_explicit_repair(self):
+        blocked = BoardItem(
+            STORY_ID,
+            "BLOCKED",
+            "0",
+            "External: target host; escalated=AUDIT-TEST",
+        )
+        repair = BoardItem(
+            "S-00.00.02", "IN_PROGRESS", "0", f"repair-for={STORY_ID}"
+        )
+        self.assertEqual([], _board_flow_errors({"blocked": blocked, "repair": repair}, 1))
+
+        missing_escalation = BoardItem(
+            STORY_ID, "BLOCKED", "0", "External: target host"
+        )
+        errors = _board_flow_errors(
+            {"blocked": missing_escalation, "repair": repair}, 1
+        )
+        self.assertIn("blocked stories lack explicit escalation", "\n".join(errors))
+
+        ordinary_work = BoardItem(
+            "S-00.00.02", "IN_PROGRESS", "0", "new feature"
+        )
+        errors = _board_flow_errors(
+            {"blocked": blocked, "ordinary": ordinary_work}, 1
+        )
+        self.assertIn("not an explicit repair", "\n".join(errors))
+
+    def test_done_stub_scan_covers_whole_powershell_file(self):
+        fixture = FixtureRepository(status="DONE")
+        self.addCleanup(fixture.cleanup)
+        powershell_path = fixture.root / "scripts" / "sample.ps1"
+        powershell_path.write_text(
+            "function Invoke-Placeholder { }\nVALUE = 1\n", encoding="utf-8"
+        )
+        board_path = fixture.root / "BOARD.md"
+        board_path.write_text(
+            board_path.read_text(encoding="utf-8").replace(
+                "scripts/sample.py:1-1", "scripts/sample.ps1:2-2"
+            ),
+            encoding="utf-8",
+        )
+        result = RepositoryVerifier(fixture.root, run_evidence_tests=False).verify()
+        self.assertFalse(result.ok)
+        self.assertIn("empty PowerShell function", "\n".join(result.errors))
 
 
 if __name__ == "__main__":

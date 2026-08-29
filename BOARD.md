@@ -48,7 +48,7 @@ BACKLOG_APPROVED: true
 | S-05.02.02 | BACKLOG | 5 | S-02.01.01; OQ-07 |
 | S-05.03.01 | BACKLOG | 5 | S-04.01.02; S-05.01.01 |
 | S-05.03.02 | BACKLOG | 5 | S-05.02.02; S-05.03.01 |
-| S-06.01.01 | IN_PROGRESS | R1 | repair-for=S-00.01.01; approved=2026-08-29; AL-02,18,20,21,22 |
+| S-06.01.01 | IN_REVIEW | R1 | 21 tests and verifier pass; distributed evidence commit pending |
 | S-06.02.01 | BACKLOG | R1 | S-06.01.01; AL-01,03,09,10,11,13,14,15,19 |
 | S-06.03.01 | BACKLOG | R1 | S-06.02.01; AL-04,05,06,07,08,23 |
 | S-06.04.01 | BACKLOG | R1 | S-06.03.01; AL-12,16,17 |
