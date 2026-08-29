@@ -1,5 +1,4 @@
 from pathlib import Path
-import shutil
 import subprocess
 import tempfile
 import textwrap
@@ -361,7 +360,7 @@ class VerifierContractTests(unittest.TestCase):
     def test_commit_must_resolve_in_git_repository(self):
         fixture = FixtureRepository(status="DONE")
         self.addCleanup(fixture.cleanup)
-        shutil.rmtree(fixture.root / ".git")
+        (fixture.root / ".git").rename(fixture.root / ".git-disabled")
         result = RepositoryVerifier(fixture.root, run_evidence_tests=False).verify()
         self.assertFalse(result.ok)
         self.assertIn(
