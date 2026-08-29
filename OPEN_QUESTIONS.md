@@ -155,8 +155,25 @@ question can change its shape.
 - Increment 1 handling: only a freshly copied, hash-verified bootstrap is mapped read-only.
   The persistent-vault decision remains open for S-02.01.01.
 
+## OQ-14 — wsb.exe raw contract and Windows PowerShell 5.1
+
+- Status: OPEN — BLOCKS TARGET-HOST LIFECYCLE ACCEPTANCE
+- Ambiguity: The exact named ID field returned by the installed 24H2 `wsb.exe --raw`
+  commands, and whether that build writes warnings to stderr under Windows PowerShell 5.1.
+- Options: A stable documented field; a version-specific field contract; or an unsupported
+  CLI shape that must fail closed with raw redacted diagnostics.
+- Recommended default: Accept only an explicitly named field confirmed on the target host,
+  record the CLI file version, capture stdout and stderr separately, and never scrape GUIDs.
+- Evidence needed: Redacted outputs from `wsb list --raw` and one test `wsb start --raw`,
+  `wsb.exe` file version, and Windows PowerShell 5.1 stderr behaviour.
+- Blast radius: High. A wrong ID can orphan a live sandbox or stop the wrong session.
+- Blocks: Target-host DONE evidence for S-06.03.01 and S-01.01.01.
+- Answer: Source repair approved on 2026-08-29; target-host contract evidence pending.
+
 ## Known limitation — telemetry is SOFT
 
-Nonce correlation prevents stale or mismatched replies. It cannot make a malicious guest
-truthful because the guest controls its own telemetry. Strict mode and wsb stop remain the
-only HARD microphone guarantees.
+The current Increment 1 result is isolated by a per-session directory but does not yet
+carry a nonce. S-06.04.01 must add and verify session plus nonce correlation before the
+project may claim stale-result rejection. Even after that repair, guest telemetry remains
+SOFT because the guest controls its own report. Strict mode and `wsb stop` remain the only
+HARD microphone guarantees.

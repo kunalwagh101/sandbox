@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Repair register
+
+- Added the approved AUDIT-2026-08-28 register with AL-01 through AL-23 mapped to four
+  WIP-limited R1 repair stories.
+- Withdrew Increment 0 DONE evidence after the product owner's Windows clone reproduced
+  the missing-commit failure on 2026-08-29.
+- Marked the affected Increment 1 stories BLOCKED with explicit escalation and recorded
+  online browsing as DEFERRED rather than silently narrowing R-APP-04.
+- Corrected the nonce limitation text: correlation is planned in S-06.04.01 and does not
+  exist in the current implementation.
+
 ### Added
 
 - Binding Airlock build brief.

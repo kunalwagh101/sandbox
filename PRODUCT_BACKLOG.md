@@ -99,16 +99,16 @@ work also map to backlog stories.
 | C-DEL-01 | S-00.01.01 | Phase gate and explicit backlog approval |
 | C-DEL-02 | S-00.01.01 | Stable hierarchy, zero orphans, open questions, and explicit exclusions |
 | C-DEL-03 | S-00.01.01 | Machine board, states, WIP, blocking, and deferred rules |
-| C-DEL-04 | S-00.01.01 | Ready, Done, evidence, and test re-execution |
-| C-DEL-05 | S-00.01.01 | Standard-library verifier, CI, pre-push, and seeded lie |
+| C-DEL-04 | S-00.01.01, S-06.01.01 | Ready, Done, evidence, and test re-execution |
+| C-DEL-05 | S-00.01.01, S-06.01.01 | Standard-library verifier, CI, pre-push, and seeded lie |
 | C-DEL-06 | S-00.01.01 | Sprint goal, demo, retro, change control, and traceability |
 | C-AI-01 | S-00.01.01, S-05.02.01 | Problem, data, baseline, AI decision, evaluation honesty, and limits |
 | C-PROD-01 | S-01.01.01, S-03.01.01, S-04.01.02, S-05.03.01 | Customer value, workflows, rules, metrics, exceptions, and risk |
 | C-ARCH-01 | S-01.01.01, S-01.02.01, S-02.01.02 | Native, minimal, scalable architecture and build-versus-buy decisions |
 | C-ENG-01 | S-00.01.01, S-01.02.01, S-02.01.02 | Reuse, standard library, native features, and smallest safe implementation |
-| C-SEC-01 | S-01.02.01, S-04.01.01, S-05.01.01, S-05.02.01, S-05.02.02 | Threats, validation, authorisation, secrets, and negative controls |
-| C-PERF-01 | S-01.02.03, S-03.02.01 | RAM, disk, launch, CPU, and transition-latency budgets |
-| C-OPS-01 | S-00.01.01, S-03.02.03, S-05.03.01, S-05.03.02 | CI, observability, diagnostics, rollback, and teardown |
+| C-SEC-01 | S-01.02.01, S-04.01.01, S-05.01.01, S-05.02.01, S-05.02.02, S-06.02.01 | Threats, validation, authorisation, secrets, and negative controls |
+| C-PERF-01 | S-01.02.03, S-03.02.01, S-06.03.01 | RAM, disk, launch, CPU, and transition-latency budgets |
+| C-OPS-01 | S-00.01.01, S-03.02.03, S-05.03.01, S-05.03.02, S-06.03.01, S-06.04.01 | CI, observability, diagnostics, rollback, and teardown |
 | C-UI-01 | S-03.02.02 | Persistent accessible capability-state UI |
 <!-- CONTRACT_COVERAGE_END -->
 
@@ -585,6 +585,148 @@ work also map to backlog stories.
   - T-05.03.02.d: Implement confirmed purge of canonical Airlock-owned paths only.
   - T-05.03.02.e: Add stop, residue, purge, and adversarial-path tests.
 
+## E-06 — Repair launch and evidence truth
+
+- Owner: Product owner and technical lead
+- Outcome: The distributed repository launches when supported and every security claim is
+  backed by executed behaviour rather than source-text presence.
+- Value hypothesis: Repairing the evidence system and launch lifecycle before adding
+  features prevents a broken security boundary from becoming trusted or widely used.
+
+### F-06.01 — Distributed repository truth
+
+- Parent: E-06
+- Capability: Keep evidence, board state, and distributed Git history mutually resolvable.
+
+#### Story S-06.01.01 — Restore the delivery lie detector
+
+- User story: As the product owner, I want the cloned repository to reject false progress and verify its own evidence, so that CI and my machine report the same truth.
+- Business value: E-06 — restores the gate required before any sandbox claim can advance.
+- Increment: R1
+- Size: M
+- Leading indicator: Fresh GitHub clones producing the same verifier result as the authoring repository.
+- Dependencies: None.
+- Blocking risk: Evidence cannot close against a commit that exists only in an undistributed local history.
+- Acceptance criteria:
+  - AC-S-06.01.01-01 | Given evidence in a Git repository or exported tree, When its commit cannot be independently resolved, Then verification fails and names whether Git or the commit is missing. | Test: tests/test_verify_board.py::VerifierContractTests.test_commit_must_resolve_in_git_repository
+  - AC-S-06.01.01-02 | Given a story remains BACKLOG while its declared implementation paths exist, When verification runs, Then it fails and names the unpulled implemented story. | Test: tests/test_verify_board.py::VerifierContractTests.test_implemented_backlog_story_fails
+  - AC-S-06.01.01-03 | Given acceptance-test references merely resolve by name, When the summary prints, Then it labels that value as resolved tests rather than behavioural coverage. | Test: tests/test_verify_board.py::VerifierContractTests.test_summary_does_not_overclaim_coverage
+  - AC-S-06.01.01-04 | Given escalated blocked work and an approved repair story, When board rules run, Then the repair is allowed only when the escalation and repair target are explicit. | Test: tests/test_verify_board.py::VerifierContractTests.test_escalated_blocker_requires_explicit_repair
+- Tasks:
+  - T-06.01.01.a: Parse and validate the complete AL-01 through AL-23 repair register.
+  - T-06.01.01.b: Fail closed when Git evidence cannot be checked.
+  - T-06.01.01.c: Detect implemented stories hidden in BACKLOG and enforce explicit repair escalation.
+  - T-06.01.01.d: Rename the acceptance-test summary to what it actually measures.
+
+### F-06.02 — Executed PowerShell boundary
+
+- Parent: E-06
+- Capability: Execute deterministic path, policy, and state controls on every CI run.
+
+#### Story S-06.02.01 — Execute security behaviour before launch
+
+- User story: As an Airlock user, I want the PowerShell boundary executed against safe fixtures, so that a launch-blocking or weakened-control defect is caught before Windows Sandbox starts.
+- Business value: E-06 — proves the generated boundary instead of trusting strings in source files.
+- Increment: R1
+- Size: M
+- Leading indicator: Security mutations rejected by executed cross-platform PowerShell tests.
+- Dependencies: S-06.01.01.
+- Blocking risk: Windows-only Authenticode and Sandbox runtime behaviour still require OQ-01 target-host evidence.
+- Acceptance criteria:
+  - AC-S-06.02.01-01 | Given real files and directories below an Airlock fixture root, When reparse traversal executes, Then both valid types reach the root and a deliberately weakened traversal test fails. | Test: tests/Invoke-SourceAcceptance.ps1::Test-ReparseTraversal
+  - AC-S-06.02.01-02 | Given fixture mappings and the strict policy, When the profile generator executes, Then parsed XML contains only bounded mappings and every deliberate capability weakening is rejected. | Test: tests/Invoke-SourceAcceptance.ps1::Test-GeneratedStrictProfile
+  - AC-S-06.02.01-03 | Given a protected relative path and a user-profile path containing state or audit as an ancestor, When mapping validation executes, Then only Airlock-relative state and audit segments are rejected. | Test: tests/Invoke-SourceAcceptance.ps1::Test-RelativeProtectedPaths
+  - AC-S-06.02.01-04 | Given existing policy state or a WhatIf initialisation, When writes are evaluated, Then replacement is atomic and WhatIf never reports a write that did not occur. | Test: tests/Invoke-SourceAcceptance.ps1::Test-StateWriteContract
+- Tasks:
+  - T-06.02.01.a: Fix FileInfo traversal and root-relative protected-path checks.
+  - T-06.02.01.b: Execute the real profile generator and parse its emitted XML.
+  - T-06.02.01.c: Add deliberate weakening tests with exact expected failures.
+  - T-06.02.01.d: Run source acceptance under PowerShell in CI and pre-push.
+
+### F-06.03 — Safe session lifecycle
+
+- Parent: E-06
+- Capability: Identify, stop, reconcile, and clean one session without orphaned guests or stale state.
+
+#### Story S-06.03.01 — Stop and clean every launched session
+
+- User story: As an Airlock user, I want failed and completed sessions stopped and cleaned automatically, so that no invisible sandbox or installer copy survives by accident.
+- Business value: E-06 — restores availability, disk discipline, and truthful current-session state.
+- Increment: R1
+- Size: L
+- Leading indicator: Simulated post-start failures leaving zero active IDs, stale state files, or session directories.
+- Dependencies: S-06.02.01.
+- Blocking risk: The 24H2 wsb.exe JSON field names and Windows PowerShell 5.1 stderr behaviour need target-host confirmation.
+- Acceptance criteria:
+  - AC-S-06.03.01-01 | Given documented wsb JSON, When session identity is parsed, Then only the named ID field is accepted and ambiguous GUID scraping is impossible. | Test: tests/Invoke-LifecycleAcceptance.ps1::Test-WsbIdentityParsing
+  - AC-S-06.03.01-02 | Given any failure after start, When launch handling exits, Then the named guest is stopped and the failure remains actionable. | Test: tests/Invoke-LifecycleAcceptance.ps1::Test-PostStartFailureCleanup
+  - AC-S-06.03.01-03 | Given a stopped or externally closed guest, When state reconciliation runs, Then active-session.json and its staging directory are removed without touching other paths. | Test: tests/Invoke-LifecycleAcceptance.ps1::Test-StopAndStateReconciliation
+  - AC-S-06.03.01-04 | Given repeated benchmark launches, When one guest is stopped, Then the collector waits until its ID disappears before the next run and fails on timeout. | Test: tests/Invoke-LifecycleAcceptance.ps1::Test-BenchmarkStopWait
+- Tasks:
+  - T-06.03.01.a: Replace GUID scraping with named-field parsing and raw-output diagnostics.
+  - T-06.03.01.b: Centralise post-start cleanup for every failure branch.
+  - T-06.03.01.c: Add Stop-Airlock with bounded polling, state reconciliation, and owned-directory cleanup.
+  - T-06.03.01.d: Make acceptance and benchmark teardown wait for confirmed stop.
+
+### F-06.04 — Honest provenance and scope
+
+- Parent: E-06
+- Capability: Bind results to their launch and distinguish measured facts from contract inputs.
+
+#### Story S-06.04.01 — Remove unsupported product claims
+
+- User story: As an Airlock user, I want every result and scope statement to describe what was actually measured, so that I do not mistake an offline browser or echoed value for proven security evidence.
+- Business value: E-06 — prevents false confidence at the product boundary.
+- Increment: R1
+- Size: M
+- Leading indicator: Result records with verified session correlation and no contract-echo evidence fields.
+- Dependencies: S-06.03.01.
+- Blocking risk: Online browsing remains deferred until OQ-08 has an accepted LAN-risk design.
+- Acceptance criteria:
+  - AC-S-06.04.01-01 | Given a pinned installer and policy version, When host and guest validate it, Then the actual installer version is checked against policy and recorded as measured. | Test: tests/Invoke-ProvenanceAcceptance.ps1::Test-MeasuredInstallerVersion
+  - AC-S-06.04.01-02 | Given a unique session and nonce, When provisioning writes a result, Then the host accepts only the matching correlation values. | Test: tests/Invoke-ProvenanceAcceptance.ps1::Test-SessionCorrelation
+  - AC-S-06.04.01-03 | Given Increment 1 has networking disabled, When scope and board state are inspected, Then online browsing is explicitly DEFERRED with a reason and revisit trigger. | Test: tests/test_project_contract.py::ProjectContractTests.test_offline_browsing_is_explicitly_deferred
+- Tasks:
+  - T-06.04.01.a: Measure and compare installer version on both sides of the boundary.
+  - T-06.04.01.b: Add cryptographically random nonce and session correlation to contract and result.
+  - T-06.04.01.c: Validate correlation before accepting provisioning success.
+  - T-06.04.01.d: Correct README, architecture, open-question, board, and demo claims.
+
+## Approved audit repair register
+
+The product owner reproduced AL-01 and AL-02 and approved this complete register on
+2026-08-29. Every finding maps to exactly one repair story; no finding is silently dropped.
+
+EXPECTED_AUDIT_FINDINGS: 23
+
+<!-- AUDIT_START -->
+| Finding ID | Severity | Repair story | Repair intent |
+|---|---|---|---|
+| AL-01 | Blocker | S-06.02.01 | Fix FileInfo traversal and execute it |
+| AL-02 | Critical | S-06.01.01 | Make distributed commit evidence resolve |
+| AL-03 | Critical | S-06.02.01 | Replace source-string security checks with execution |
+| AL-04 | High | S-06.03.01 | Stop the guest after every post-start failure |
+| AL-05 | High | S-06.03.01 | Parse named wsb identity fields only |
+| AL-06 | High | S-06.03.01 | Remove per-session staging after stop |
+| AL-07 | High | S-06.03.01 | Reconcile stale active-session state |
+| AL-08 | High | S-06.03.01 | Wait for confirmed stop between benchmarks |
+| AL-09 | Medium | S-06.02.01 | Remove unreachable absolute denylist logic |
+| AL-10 | Medium | S-06.02.01 | Assert exact negative-control failures |
+| AL-11 | Medium | S-06.02.01 | Evaluate protected names relative to Airlock root |
+| AL-12 | Medium | S-06.04.01 | Record measured installer version |
+| AL-13 | Medium | S-06.02.01 | Restore the binding 4096 MB ceiling |
+| AL-14 | Medium | S-06.02.01 | Use real atomic replace for existing state |
+| AL-15 | Medium | S-06.02.01 | Make WhatIf output truthful |
+| AL-16 | Medium | S-06.04.01 | Implement the documented nonce correlation |
+| AL-17 | Process | S-06.04.01 | Record offline browsing as DEFERRED |
+| AL-18 | Process | S-06.01.01 | Reject implementation hidden in BACKLOG |
+| AL-19 | Process | S-06.02.01 | Execute portable PowerShell in CI |
+| AL-20 | Note | S-06.01.01 | Fail when commit verification lacks Git |
+| AL-21 | Note | S-06.01.01 | Extend stub checks to PowerShell and whole files |
+| AL-22 | Note | S-06.01.01 | Rename test-resolution summary honestly |
+| AL-23 | Note | S-06.03.01 | Avoid Windows PowerShell native-stderr ambiguity |
+<!-- AUDIT_END -->
+
 ## Requirements → Backlog coverage
 
 The verifier compares the fixed 45-ID source manifest above with this table.
@@ -611,7 +753,7 @@ The verifier compares the fixed 45-ID source manifest above with this table.
 | R-APP-01 | S-02.01.03 | Real ChatGPT app feasibility |
 | R-APP-02 | S-02.01.02 | Claude Code toolchain |
 | R-APP-03 | S-02.01.02 | OpenAI Codex toolchain |
-| R-APP-04 | S-01.02.02 | Brave in sealed session |
+| R-APP-04 | S-01.02.02, S-05.01.01 | Offline Brave first; browsing only after egress controls |
 | R-APP-05 | S-02.01.02 | Config-driven package additions |
 | R-APP-06 | S-02.01.01 | Persistent app state |
 | R-APP-07 | S-01.02.02, S-02.01.02 | Pinned reproducible provisioning |
