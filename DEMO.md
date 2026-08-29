@@ -1,5 +1,16 @@
 # Airlock Demo
 
+## Repair R1 — executed source boundary
+
+Run this before any live launch:
+
+    powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File tests\Invoke-SourceAcceptance.ps1
+
+Expected: four named passes and `SOURCE_ACCEPTANCE: PASSED (4 tests)`. The test invokes
+the real file traversal, mapping validation, profile generator, XML parser, strict-policy
+weakening checks, atomic state writer, and truthful initialisation-result helper. It does
+not start Windows Sandbox or require a Brave installer.
+
 ## Increment 1 — strict offline Brave Sandbox
 
 Run these commands from Windows PowerShell in the repository.

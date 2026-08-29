@@ -13,6 +13,20 @@
 - Corrected the nonce limitation text: correlation is planned in S-06.04.01 and does not
   exist in the current implementation.
 
+### Fixed
+
+- Fixed `Assert-AirlockNoReparsePoint` so `FileInfo` traversal uses `.Directory`; the
+  exact failure reproduced by the product owner is now an executed regression test.
+- Restricted the configurable root to `%LOCALAPPDATA%\Airlock` and evaluate protected
+  `audit`/`state` names relative to that root, avoiding false failures for user ancestors.
+- Restored the binding 4096 MB ceiling and added executed deliberate-weakening checks for
+  every strict Sandbox setting plus the memory boundary.
+- Replaced forced file moves in host JSON/profile writes with same-directory atomic move
+  or replace operations.
+- Made initialiser `-WhatIf` results say `planned` and `PolicyWritten=false`.
+- Added portable PowerShell source acceptance to Ubuntu CI, Windows PowerShell 5.1 CI,
+  and the pre-push gate.
+
 ### Added
 
 - Binding Airlock build brief.

@@ -6,8 +6,8 @@ current state. Planned paths are not claims that files already exist.
 | Story | Requirements | Planned implementation | Planned evidence | State |
 |---|---|---|---|---|
 | S-00.01.01 | Delivery contract §2.5 | scripts/verify_board.py; CI; pre-push | BOARD.md evidence; tests/test_verify_board.py; evidence/SEEDED_LIE_PROOF.md | DONE — repaired distributed evidence |
-| S-01.01.01 | R-PLAT-01..03; R-OPS-02 | scripts/Airlock.Common.ps1; scripts/Start-Airlock.ps1 | static source contracts; tests/Invoke-Increment1Acceptance.ps1 | IN_REVIEW — Windows evidence pending |
-| S-01.02.01 | R-ISO-01,03..06; R-PERM-01; R-DATA-06; R-SEC-01 | scripts/New-AirlockProfile.ps1; policy.json | static weakening/mapping contracts; Windows profile probes | BACKLOG — source prepared, upstream pending |
+| S-01.01.01 | R-PLAT-01..03; R-OPS-02 | scripts/Airlock.Common.ps1; scripts/Start-Airlock.ps1 | executed source acceptance; tests/Invoke-Increment1Acceptance.ps1 | BLOCKED — repair and Windows evidence pending |
+| S-01.02.01 | R-ISO-01,03..06; R-PERM-01; R-DATA-06; R-SEC-01 | scripts/New-AirlockProfile.ps1; policy.json | executed PowerShell weakening and mapping tests; Windows profile probes | BLOCKED — repair in progress |
 | S-01.02.02 | R-APP-04; R-APP-07 | scripts/Initialize-Airlock.ps1; guest/provision.ps1 | signature/hash source contracts; live Brave acceptance | BACKLOG — source prepared, upstream pending |
 | S-01.02.03 | R-RES-01..04 | tests/Measure-Increment1.ps1; DEMO.md | three-run target-host threshold report | BACKLOG — collector prepared, OQ-10 open |
 | S-02.01.01 | R-APP-06; R-SEC-03 | segmented mappings and profiles | persistence and immutable-input tests | BACKLOG |
@@ -26,6 +26,6 @@ current state. Planned paths are not claims that files already exist.
 | S-05.03.01 | R-OPS-01..03 | README and safe diagnostics | workflow smoke tests | BACKLOG |
 | S-05.03.02 | R-PERM-05; R-OPS-04; R-SEC-03 | stop, residue report, purge | teardown and path-safety tests | BACKLOG |
 | S-06.01.01 | Delivery repair AL-02,18,20,21,22 | scripts/verify_board.py; BOARD.md | verifier contract tests; fresh-clone evidence | DONE |
-| S-06.02.01 | Security repair AL-01,03,09,10,11,13,14,15,19 | common/profile/initialiser controls; PowerShell CI | tests/Invoke-SourceAcceptance.ps1 | IN_PROGRESS |
+| S-06.02.01 | Security repair AL-01,03,09,10,11,13,14,15,19 | common/profile/initialiser controls; PowerShell CI | tests/Invoke-SourceAcceptance.ps1 | IN_REVIEW — CI evidence pending |
 | S-06.03.01 | Lifecycle repair AL-04..08,23 | Start-Airlock.ps1; Stop-Airlock.ps1; benchmark teardown | tests/Invoke-LifecycleAcceptance.ps1; target-host acceptance | BACKLOG |
 | S-06.04.01 | Product-truth repair AL-12,16,17 | provisioning correlation; docs; deferred register | provenance acceptance; project contract test | BACKLOG |

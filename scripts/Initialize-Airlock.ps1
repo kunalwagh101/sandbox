@@ -52,9 +52,9 @@ $templateMemoryMB = 0
 if (
     -not [int]::TryParse([string]$template.sandbox.memoryMB, [ref]$templateMemoryMB) -or
     $templateMemoryMB -lt 2048 -or
-    $templateMemoryMB -gt 8192
+    $templateMemoryMB -gt 4096
 ) {
-    throw 'The policy template memory must be an integer from 2048 through 8192 MB.'
+    throw 'The policy template memory must be an integer from 2048 through 4096 MB.'
 }
 $trustedPublisher = 'Brave Software, Inc.'
 if ([string]$template.package.expectedPublisher -cne $trustedPublisher) {
@@ -115,7 +115,11 @@ if ((Test-Path -LiteralPath $policyPath) -and -not $Force) {
     }
 }
 
-if ($PSCmdlet.ShouldProcess($airlockRoot, 'Pin the signed Brave installer and strict policy')) {
+$applied = $PSCmdlet.ShouldProcess(
+    $airlockRoot,
+    'Pin the signed Brave installer and strict policy'
+)
+if ($applied) {
     New-Item -ItemType Directory -Path $packageDirectory -Force | Out-Null
     Assert-AirlockNoReparsePoint -Path $packageDirectory -Root $airlockRoot
     if (Test-Path -LiteralPath $policyPath) {
@@ -153,13 +157,14 @@ if ($PSCmdlet.ShouldProcess($airlockRoot, 'Pin the signed Brave installer and st
     Write-AirlockJsonAtomic -Path $policyPath -Value $template
 }
 
-[PSCustomObject]@{
-    PolicyPath = $policyPath
-    Product = [string]$template.package.product
-    InstallerProduct = $productName
-    InstallerVersion = $installerVersion
-    InstallerSha256 = $sha256
-    Publisher = $subject
-    SignerName = $signerName
-    Networking = [string]$template.sandbox.networking
-}
+$result = New-AirlockInitializationResult `
+    -Applied $applied `
+    -PolicyPath $policyPath `
+    -InstallerVersion $installerVersion `
+    -InstallerSha256 $sha256 `
+    -Networking ([string]$template.sandbox.networking)
+$result | Add-Member -NotePropertyName Product -NotePropertyValue ([string]$template.package.product)
+$result | Add-Member -NotePropertyName InstallerProduct -NotePropertyValue $productName
+$result | Add-Member -NotePropertyName Publisher -NotePropertyValue $subject
+$result | Add-Member -NotePropertyName SignerName -NotePropertyValue $signerName
+return $result

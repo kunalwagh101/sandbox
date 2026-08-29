@@ -167,7 +167,7 @@ work also map to backlog stories.
 - Acceptance criteria:
   - AC-S-01.01.01-01: Given Home edition, build below 26100, disabled virtualisation, or a missing Sandbox feature, When preflight runs, Then launch is refused with the exact failed prerequisite and recovery action. | Test: tests/test_increment1_contract.py::Increment1ContractTests.test_preflight_refuses_unsupported_or_ambiguous_hosts
   - AC-S-01.01.01-02: Given a supported host, When Start-Airlock.ps1 runs, Then exactly one sandbox starts and its session identifier is recorded. | Test: tests/Invoke-Increment1Acceptance.ps1::Test-LiveLaunch
-  - AC-S-01.01.01-03: Given an absent or unsafe required path, When launch is requested, Then no sandbox starts and no broad host folder is mapped. | Test: tests/test_increment1_contract.py::Increment1ContractTests.test_profile_has_only_bounded_explicit_mappings
+  - AC-S-01.01.01-03: Given an absent or unsafe required path, When launch is requested, Then no sandbox starts and no broad host folder is mapped. | Test: tests/Invoke-SourceAcceptance.ps1::Test-ReparseTraversal
 - Tasks:
   - T-01.01.01.a: Implement edition, build, Sandbox-feature, CLI, and virtualisation checks.
   - T-01.01.01.b: Implement canonical Airlock-root and protected-path validation.
@@ -189,9 +189,9 @@ work also map to backlog stories.
 - Dependencies: S-01.01.01, OQ-04, and approved backlog.
 - Blocking risk: ProtectedClient compatibility requires a Windows spike.
 - Acceptance criteria:
-  - AC-S-01.02.01-01: Given strict policy, When XML is generated, Then audio, video, clipboard, printer, and vGPU are disabled explicitly, ProtectedClient is explicit, and memory is bounded. | Test: tests/Invoke-Increment1Acceptance.ps1::Test-StrictProfile
-  - AC-S-01.02.01-02: Given generated mappings, When inspected, Then every host path is under the Airlock root, every write flag is explicit, and no drive root, user profile, Desktop, Documents, or audit path is mapped. | Test: tests/test_increment1_contract.py::Increment1ContractTests.test_profile_has_only_bounded_explicit_mappings
-  - AC-S-01.02.01-03: Given a weakened profile, When security tests run, Then they fail before the hardened profile passes. | Test: tests/test_increment1_contract.py::Increment1ContractTests.test_strict_policy_and_deliberate_weakening
+  - AC-S-01.02.01-01: Given strict policy, When XML is generated, Then audio, video, clipboard, printer, and vGPU are disabled explicitly, ProtectedClient is explicit, and memory is bounded. | Test: tests/Invoke-SourceAcceptance.ps1::Test-GeneratedStrictProfile
+  - AC-S-01.02.01-02: Given generated mappings, When inspected, Then every host path is under the private Airlock root, every write flag is explicit, and Airlock-relative audit or state paths are refused. | Test: tests/Invoke-SourceAcceptance.ps1::Test-RelativeProtectedPaths
+  - AC-S-01.02.01-03: Given a weakened profile, When security tests run, Then each exact security rejection is observed before the hardened profile passes. | Test: tests/Invoke-SourceAcceptance.ps1::Test-GeneratedStrictProfile
 - Tasks:
   - T-01.02.01.a: Define and validate the strict policy contract.
   - T-01.02.01.b: Generate deterministic, escaped Sandbox XML.

@@ -29,8 +29,8 @@ def validate_strict_policy(policy):
         if sandbox.get(name) != expected:
             raise ValueError(f"{name} must be {expected}")
     memory = sandbox.get("memoryMB")
-    if not isinstance(memory, int) or not 2048 <= memory <= 8192:
-        raise ValueError("memory outside implementation ceiling")
+    if not isinstance(memory, int) or not 2048 <= memory <= 4096:
+        raise ValueError("memory outside binding ceiling")
 
 
 class Increment1ContractTests(unittest.TestCase):
@@ -72,7 +72,8 @@ class Increment1ContractTests(unittest.TestCase):
     def test_profile_has_only_bounded_explicit_mappings(self):
         self.assertIn("Assert-AirlockMappedPath", self.profile)
         self.assertIn("Assert-AirlockNoReparsePoint", self.common)
-        self.assertIn("Audit and state paths can never be mapped", self.common)
+        self.assertIn("Assert-AirlockPrivateRoot", self.common)
+        self.assertIn("Airlock-relative audit and state paths can never be mapped", self.common)
         self.assertIn("Host = $bootstrap; Guest = 'C:\\AirlockBootstrap'; ReadOnly = 'true'", self.profile)
         self.assertIn("Host = $result; Guest = 'C:\\AirlockResult'; ReadOnly = 'false'", self.profile)
         self.assertNotIn("$env:USERPROFILE, 'true'", self.profile)
@@ -133,6 +134,9 @@ class Increment1ContractTests(unittest.TestCase):
         self.assertIn("packageRelativePath", self.initialize)
         self.assertIn("provisionScriptSha256", self.initialize)
         self.assertIn("Write-AirlockJsonAtomic", self.initialize)
+        self.assertIn("$PSCmdlet.ShouldProcess", self.initialize)
+        self.assertIn("New-AirlockInitializationResult", self.initialize)
+        self.assertIn("PolicyWritten", self.common)
         self.assertNotIn("Invoke-WebRequest", self.initialize)
 
     def test_guest_rechecks_package_and_records_exact_version(self):

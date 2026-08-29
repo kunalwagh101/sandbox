@@ -76,8 +76,8 @@ $memoryMB = 0
 if (-not [int]::TryParse([string]$policy.sandbox.memoryMB, [ref]$memoryMB)) {
     throw 'sandbox.memoryMB must be an integer.'
 }
-if ($memoryMB -lt 2048 -or $memoryMB -gt 8192) {
-    throw 'sandbox.memoryMB must remain between 2048 and the 8192 MB implementation ceiling.'
+if ($memoryMB -lt 2048 -or $memoryMB -gt 4096) {
+    throw 'sandbox.memoryMB must remain between 2048 and the binding 4096 MB ceiling.'
 }
 
 $installerName = [string]$policy.package.installerFileName
@@ -165,7 +165,7 @@ try {
     $writer.Flush()
     $writer.Close()
     $writer = $null
-    Move-Item -LiteralPath $temporary -Destination $output -Force
+    Move-AirlockFileAtomic -TemporaryPath $temporary -DestinationPath $output
 }
 finally {
     if ($null -ne $writer) {

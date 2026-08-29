@@ -49,7 +49,7 @@ BACKLOG_APPROVED: true
 | S-05.03.01 | BACKLOG | 5 | S-04.01.02; S-05.01.01 |
 | S-05.03.02 | BACKLOG | 5 | S-05.02.02; S-05.03.01 |
 | S-06.01.01 | DONE | R1 | Evidence below; AL-02,18,20,21,22 repaired |
-| S-06.02.01 | IN_PROGRESS | R1 | repair-for=S-01.01.01,S-01.02.01; approved=2026-08-29 |
+| S-06.02.01 | IN_REVIEW | R1 | Python checks pass; executed PowerShell CI evidence pending |
 | S-06.03.01 | BACKLOG | R1 | S-06.02.01; AL-04,05,06,07,08,23 |
 | S-06.04.01 | BACKLOG | R1 | S-06.03.01; AL-12,16,17 |
 <!-- BOARD_END -->

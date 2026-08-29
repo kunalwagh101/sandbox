@@ -71,7 +71,7 @@ is still untrusted data and is never executed.
 
 | Section | Important fields | Validation |
 |---|---|---|
-| `sandbox` | memory and seven explicit capability values | strict exact values; memory 2048–8192 MB implementation ceiling |
+| `sandbox` | memory and seven explicit capability values | strict exact values; memory 2048–4096 MB binding ceiling |
 | `package` | filename, publisher, SHA-256, version, relative package path | safe filename, valid signature, 64 uppercase hex, path under Airlock root |
 | `guest` | provisioner filename/hash and result filename | safe names and pinned provisioner hash |
 

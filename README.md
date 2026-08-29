@@ -68,6 +68,13 @@ Repository checks, runnable on any development host:
     python -m unittest discover -s tests -v
     python scripts/verify_board.py
 
+Execute the deterministic PowerShell boundary before any live Sandbox launch:
+
+    powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File tests\Invoke-SourceAcceptance.ps1
+
+On Linux or macOS development hosts with PowerShell 7, use `pwsh` instead of
+`powershell.exe`. This test creates only temporary fixtures; it does not start Sandbox.
+
 Live Windows acceptance after initialisation:
 
     powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File tests\Invoke-Increment1Acceptance.ps1 -RunLive

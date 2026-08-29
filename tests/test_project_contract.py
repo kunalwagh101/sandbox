@@ -35,7 +35,8 @@ class ProjectContractTests(unittest.TestCase):
         self.assertIn("python -m unittest discover -s tests -v", workflow)
         self.assertIn("runs-on: windows-latest", workflow)
         self.assertIn("Language.Parser]::ParseFile", workflow)
-
+        self.assertGreaterEqual(workflow.count("Invoke-SourceAcceptance.ps1"), 2)
+        self.assertIn("Invoke-SourceAcceptance.ps1", hook)
 
 if __name__ == "__main__":
     unittest.main()

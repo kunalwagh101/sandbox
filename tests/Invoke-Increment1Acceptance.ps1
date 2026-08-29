@@ -61,23 +61,27 @@ function Test-StrictProfile {
     $weakenedPath = Join-Path $testRoot 'weakened.json'
     $policy.sandbox.audioInput = 'Enable'
     [IO.File]::WriteAllText($weakenedPath, ($policy | ConvertTo-Json -Depth 12), [Text.UTF8Encoding]::new($false))
-    $weakFailed = $false
+    $weakMessage = $null
     try {
         & $profileScript -PolicyPath $weakenedPath -AirlockRoot $airlockRoot -BootstrapPath $bootstrap -ResultPath $result -OutputPath (Join-Path $testRoot 'weak.wsb') | Out-Null
     }
     catch {
-        $weakFailed = $true
+        $weakMessage = $_.Exception.Message
     }
-    Assert-Acceptance -Condition $weakFailed -Message 'Profile generator accepted AudioInput=Enable.'
+    Assert-Acceptance `
+        -Condition ($null -ne $weakMessage -and $weakMessage -like '*Strict policy requires sandbox.audioInput=Disable*') `
+        -Message "Audio weakening failed for the wrong reason: '$weakMessage'."
 
-    $unsafeFailed = $false
+    $unsafeMessage = $null
     try {
         & $profileScript -PolicyPath (Join-Path $bootstrap 'policy.lock.json') -AirlockRoot $airlockRoot -BootstrapPath $env:USERPROFILE -ResultPath $result -OutputPath (Join-Path $testRoot 'unsafe.wsb') | Out-Null
     }
     catch {
-        $unsafeFailed = $true
+        $unsafeMessage = $_.Exception.Message
     }
-    Assert-Acceptance -Condition $unsafeFailed -Message 'Profile generator accepted the user profile as a mapping.'
+    Assert-Acceptance `
+        -Condition ($null -ne $unsafeMessage -and $unsafeMessage -like '*mapping must be a child of the Airlock root*') `
+        -Message "Broad mapping failed for the wrong reason: '$unsafeMessage'."
 }
 
 function Test-LiveLaunch {

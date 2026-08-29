@@ -88,10 +88,43 @@ function Assert-AirlockNoReparsePoint {
             )) {
             return
         }
-        $current = $current.Parent
+        if ($current -is [IO.DirectoryInfo]) {
+            $current = $current.Parent
+        }
+        elseif ($current -is [IO.FileInfo]) {
+            $current = $current.Directory
+        }
+        else {
+            throw "Unsupported filesystem item type during reparse validation: $($current.GetType().FullName)"
+        }
     }
 
     throw "Could not prove that the path remains under the Airlock root: $canonicalPath"
+}
+
+function Assert-AirlockPrivateRoot {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Root
+    )
+
+    if ([string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
+        throw 'LOCALAPPDATA is unavailable; the private Airlock root cannot be proven.'
+    }
+    $canonicalRoot = Get-AirlockCanonicalPath -Path $Root -MustExist
+    if (-not (Test-Path -LiteralPath $canonicalRoot -PathType Container)) {
+        throw "The Airlock root must be a directory: $canonicalRoot"
+    }
+    $expectedRoot = Get-AirlockCanonicalPath -Path (Join-Path $env:LOCALAPPDATA 'Airlock')
+    if (-not $canonicalRoot.Equals($expectedRoot, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "The Airlock root must be the private LOCALAPPDATA Airlock directory: $expectedRoot"
+    }
+    $rootItem = Get-Item -LiteralPath $canonicalRoot -Force
+    if (($rootItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw "The Airlock root cannot be a reparse point: $canonicalRoot"
+    }
+    return $canonicalRoot
 }
 
 function Assert-AirlockMappedPath {
@@ -109,44 +142,69 @@ function Assert-AirlockMappedPath {
     )
 
     $canonicalPath = Get-AirlockCanonicalPath -Path $Path -MustExist
-    $canonicalRoot = Get-AirlockCanonicalPath -Path $Root -MustExist
+    $canonicalRoot = Assert-AirlockPrivateRoot -Root $Root
     if (-not (Test-AirlockPathInsideRoot -Path $canonicalPath -Root $canonicalRoot)) {
         throw "The $Purpose mapping must be a child of the Airlock root: $canonicalPath"
     }
 
     $separators = [char[]]@('\', '/')
-    $driveRoot = [IO.Path]::GetPathRoot($canonicalPath).TrimEnd($separators)
-    if ($canonicalPath.TrimEnd($separators).Equals(
-            $driveRoot,
-            [StringComparison]::OrdinalIgnoreCase
-        )) {
-        throw "A drive root can never be mapped into Airlock: $canonicalPath"
-    }
-
-    $protected = @(
-        $env:USERPROFILE,
-        $env:LOCALAPPDATA,
-        $env:APPDATA,
-        $(if ($env:USERPROFILE) { Join-Path $env:USERPROFILE 'Desktop' }),
-        $(if ($env:USERPROFILE) { Join-Path $env:USERPROFILE 'Documents' })
-    ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
-
-    foreach ($protectedPath in $protected) {
-        $canonicalProtected = Get-AirlockCanonicalPath -Path $protectedPath
-        if ($canonicalPath.Equals(
-                $canonicalProtected,
-                [StringComparison]::OrdinalIgnoreCase
-            )) {
-            throw "Protected host path can never be mapped into Airlock: $canonicalPath"
-        }
-    }
-
-    if ($canonicalPath -match '(?i)[\\/](audit|state)([\\/]|$)') {
-        throw "Audit and state paths can never be mapped into Airlock: $canonicalPath"
+    $prefix = $canonicalRoot.TrimEnd($separators) + [IO.Path]::DirectorySeparatorChar
+    $relative = $canonicalPath.Substring($prefix.Length)
+    $relativeSegments = @($relative -split '[\\/]' | Where-Object { $_ -ne '' })
+    if (@($relativeSegments | Where-Object { $_ -in @('audit', 'state') }).Count -gt 0) {
+        throw "Airlock-relative audit and state paths can never be mapped: $relative"
     }
 
     Assert-AirlockNoReparsePoint -Path $canonicalPath -Root $canonicalRoot
     return $canonicalPath
+}
+
+function Move-AirlockFileAtomic {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$TemporaryPath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$DestinationPath
+    )
+
+    $temporary = Get-AirlockCanonicalPath -Path $TemporaryPath -MustExist
+    $destination = Get-AirlockCanonicalPath -Path $DestinationPath
+    $temporaryParent = Split-Path -Parent $temporary
+    $destinationParent = Split-Path -Parent $destination
+    if (-not $temporaryParent.Equals(
+            $destinationParent,
+            [StringComparison]::OrdinalIgnoreCase
+        )) {
+        throw 'Atomic replacement requires temporary and destination files in one directory.'
+    }
+    if (Test-Path -LiteralPath $destination) {
+        [IO.File]::Replace($temporary, $destination, $null)
+    }
+    else {
+        [IO.File]::Move($temporary, $destination)
+    }
+}
+
+function New-AirlockInitializationResult {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)][bool]$Applied,
+        [Parameter(Mandatory = $true)][string]$PolicyPath,
+        [Parameter(Mandatory = $true)][string]$InstallerVersion,
+        [Parameter(Mandatory = $true)][string]$InstallerSha256,
+        [Parameter(Mandatory = $true)][string]$Networking
+    )
+
+    return [PSCustomObject]@{
+        Status = if ($Applied) { 'initialized' } else { 'planned' }
+        PolicyPath = $PolicyPath
+        PolicyWritten = $Applied
+        InstallerVersion = $InstallerVersion
+        InstallerSha256 = $InstallerSha256
+        Networking = $Networking
+    }
 }
 
 function Read-AirlockJson {
@@ -185,7 +243,7 @@ function Write-AirlockJsonAtomic {
     try {
         $json = $Value | ConvertTo-Json -Depth 12
         [IO.File]::WriteAllText($temporary, $json + [Environment]::NewLine, [Text.UTF8Encoding]::new($false))
-        Move-Item -LiteralPath $temporary -Destination $canonical -Force
+        Move-AirlockFileAtomic -TemporaryPath $temporary -DestinationPath $canonical
     }
     finally {
         if (Test-Path -LiteralPath $temporary) {
