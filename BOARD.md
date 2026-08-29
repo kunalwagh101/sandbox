@@ -14,21 +14,21 @@ BACKLOG_APPROVED: true
 - Increment: R1 — Restore launch and evidence truth
 - Sprint goal: Remove the reproduced launch blocker, execute the PowerShell security
   boundary in CI, make session cleanup truthful, and remove unsupported product claims.
-- Pull rule: S-06.01.01 is the only active story. Later repair stories stay BACKLOG until
-  its verifier evidence is complete.
+- Pull rule: S-06.02.01 is the only active story. Later repair stories stay BACKLOG until
+  its executed PowerShell evidence is complete.
 - Escalation rule: Increment 1 stories are BLOCKED by AUDIT-2026-08-28 and explicitly
   escalated. R1 is the approved repair work that resolves those blockers.
 - Target-host rule: Linux and CI can prove deterministic source behaviour; OQ-01 still
   blocks claims that require a real Windows Sandbox launch.
 - Review checkpoint: The product owner's Windows run reproduced AL-01 and AL-02 on
-  2026-08-29. Prior claims that all repository tests passed are withdrawn.
+  2026-08-29. The repaired verifier now passes 21 tests; Windows launch remains blocked.
 
 ## Story board
 
 <!-- BOARD_START -->
 | Story ID | Status | Increment | Blocker or note |
 |---|---|---:|---|
-| S-00.01.01 | IN_REVIEW | 0 | Prior DONE withdrawn after AL-02; repair-for=S-06.01.01 |
+| S-00.01.01 | DONE | 0 | Repaired distributed evidence below; no Windows feature claim |
 | S-01.01.01 | BLOCKED | 1 | External: AUDIT-2026-08-28; OQ-01; escalated=2026-08-29; AL-01,04,05,07,23 |
 | S-01.02.01 | BLOCKED | 1 | OQ-04; escalated=AUDIT-2026-08-28; AL-03,09,10,11,13,14,15,19 |
 | S-01.02.02 | BLOCKED | 1 | External: installer acceptance; escalated=AUDIT-2026-08-28; AL-12,16 |
@@ -48,16 +48,31 @@ BACKLOG_APPROVED: true
 | S-05.02.02 | BACKLOG | 5 | S-02.01.01; OQ-07 |
 | S-05.03.01 | BACKLOG | 5 | S-04.01.02; S-05.01.01 |
 | S-05.03.02 | BACKLOG | 5 | S-05.02.02; S-05.03.01 |
-| S-06.01.01 | IN_REVIEW | R1 | 21 tests and verifier pass; distributed evidence commit pending |
-| S-06.02.01 | BACKLOG | R1 | S-06.01.01; AL-01,03,09,10,11,13,14,15,19 |
+| S-06.01.01 | DONE | R1 | Evidence below; AL-02,18,20,21,22 repaired |
+| S-06.02.01 | IN_PROGRESS | R1 | repair-for=S-01.01.01,S-01.02.01; approved=2026-08-29 |
 | S-06.03.01 | BACKLOG | R1 | S-06.02.01; AL-04,05,06,07,08,23 |
 | S-06.04.01 | BACKLOG | R1 | S-06.03.01; AL-12,16,17 |
 <!-- BOARD_END -->
 
 ## Evidence ledger
 
-The previous S-00.01.01 evidence named a commit absent from the distributed GitHub
-history. It is withdrawn. New evidence will be recorded only after S-06.01.01 passes.
+EVIDENCE S-00.01.01
+tests: tests/test_verify_board.py::VerifierContractTests.test_scope_and_board_lies_fail; tests/test_verify_board.py::VerifierContractTests.test_done_evidence_lies_fail; tests/test_verify_board.py::VerifierContractTests.test_done_tests_are_rerun_and_summary_is_truthful; tests/test_project_contract.py::ProjectContractTests.test_ci_and_pre_push_run_required_checks
+command: python -m unittest tests.test_verify_board.VerifierContractTests.test_scope_and_board_lies_fail tests.test_verify_board.VerifierContractTests.test_done_evidence_lies_fail tests.test_verify_board.VerifierContractTests.test_done_tests_are_rerun_and_summary_is_truthful tests.test_project_contract.ProjectContractTests.test_ci_and_pre_push_run_required_checks -v
+result: 4 passed (run 2026-08-29)
+code: scripts/verify_board.py
+commit: 9f1429d68d7e0997e7ec6403fd73dcaa05fdde2f
+criteria: AC-S-00.01.01-01=tests/test_verify_board.py::VerifierContractTests.test_scope_and_board_lies_fail; AC-S-00.01.01-02=tests/test_verify_board.py::VerifierContractTests.test_done_evidence_lies_fail; AC-S-00.01.01-03=tests/test_verify_board.py::VerifierContractTests.test_done_tests_are_rerun_and_summary_is_truthful; AC-S-00.01.01-04=tests/test_project_contract.py::ProjectContractTests.test_ci_and_pre_push_run_required_checks
+END EVIDENCE
+
+EVIDENCE S-06.01.01
+tests: tests/test_verify_board.py::VerifierContractTests.test_commit_must_resolve_in_git_repository; tests/test_verify_board.py::VerifierContractTests.test_implemented_backlog_story_fails; tests/test_verify_board.py::VerifierContractTests.test_summary_does_not_overclaim_coverage; tests/test_verify_board.py::VerifierContractTests.test_escalated_blocker_requires_explicit_repair
+command: python -m unittest tests.test_verify_board.VerifierContractTests.test_commit_must_resolve_in_git_repository tests.test_verify_board.VerifierContractTests.test_implemented_backlog_story_fails tests.test_verify_board.VerifierContractTests.test_summary_does_not_overclaim_coverage tests.test_verify_board.VerifierContractTests.test_escalated_blocker_requires_explicit_repair -v
+result: 4 passed (run 2026-08-29)
+code: scripts/verify_board.py
+commit: 9f1429d68d7e0997e7ec6403fd73dcaa05fdde2f
+criteria: AC-S-06.01.01-01=tests/test_verify_board.py::VerifierContractTests.test_commit_must_resolve_in_git_repository; AC-S-06.01.01-02=tests/test_verify_board.py::VerifierContractTests.test_implemented_backlog_story_fails; AC-S-06.01.01-03=tests/test_verify_board.py::VerifierContractTests.test_summary_does_not_overclaim_coverage; AC-S-06.01.01-04=tests/test_verify_board.py::VerifierContractTests.test_escalated_blocker_requires_explicit_repair
+END EVIDENCE
 
 ## Deferred register
 
