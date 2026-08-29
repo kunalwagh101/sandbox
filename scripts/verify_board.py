@@ -523,7 +523,7 @@ def _commit_resolves(root: Path, commit: str) -> Tuple[bool, str]:
         return False, f"invalid commit value: {commit}"
     try:
         repository = subprocess.run(
-            ["git", "rev-parse", "--is-inside-work-tree"],
+            ["git", "rev-parse", "--show-toplevel"],
             cwd=root,
             text=True,
             stdout=subprocess.PIPE,
@@ -533,7 +533,16 @@ def _commit_resolves(root: Path, commit: str) -> Tuple[bool, str]:
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         return False, f"commit unverifiable because Git could not run: {exc}"
-    if repository.returncode != 0 or repository.stdout.strip().lower() != "true":
+    if repository.returncode != 0:
+        return False, "commit unverifiable: no Git repository"
+    repository_root = Path(repository.stdout.strip()).resolve()
+    try:
+        exact_root = os.path.samefile(repository_root, root)
+    except OSError:
+        exact_root = os.path.normcase(str(repository_root)) == os.path.normcase(
+            str(root.resolve())
+        )
+    if not exact_root:
         return False, "commit unverifiable: no Git repository"
     try:
         process = subprocess.run(

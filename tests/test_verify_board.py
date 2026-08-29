@@ -176,8 +176,9 @@ class FixtureRepository:
         board_story_id=STORY_ID,
         test_passes=True,
         code="VALUE = 1\n",
+        directory=None,
     ):
-        self._temporary_directory = tempfile.TemporaryDirectory()
+        self._temporary_directory = tempfile.TemporaryDirectory(dir=directory)
         self.root = Path(self._temporary_directory.name)
         (self.root / "tests").mkdir()
         (self.root / "scripts").mkdir()
@@ -381,7 +382,10 @@ class VerifierContractTests(unittest.TestCase):
         )
 
     def test_commit_must_resolve_in_git_repository(self):
-        fixture = FixtureRepository(status="DONE")
+        parent = tempfile.TemporaryDirectory()
+        self.addCleanup(parent.cleanup)
+        subprocess.run(["git", "init", "-q"], cwd=parent.name, check=True)
+        fixture = FixtureRepository(status="DONE", directory=parent.name)
         self.addCleanup(fixture.cleanup)
         (fixture.root / ".git").rename(fixture.root / ".git-disabled")
         result = RepositoryVerifier(fixture.root, run_evidence_tests=False).verify()

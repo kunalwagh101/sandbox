@@ -17,6 +17,8 @@
 
 ### Fixed
 
+- Require evidence commits to resolve from the verifier's exact repository root; an
+  enclosing parent worktree can no longer make a temporary fixture look Git-backed.
 - Fixed `Assert-AirlockNoReparsePoint` so `FileInfo` traversal uses `.Directory`; the
   exact failure reproduced by the product owner is now an executed regression test.
 - Restricted the configurable root to `%LOCALAPPDATA%\Airlock` and evaluate protected
