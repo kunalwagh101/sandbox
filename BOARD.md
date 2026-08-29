@@ -14,14 +14,14 @@ BACKLOG_APPROVED: true
 - Increment: R1 — Restore launch and evidence truth
 - Sprint goal: Remove the reproduced launch blocker, execute the PowerShell security
   boundary in CI, make session cleanup truthful, and remove unsupported product claims.
-- Pull rule: S-06.02.01 is complete. S-06.03.01 stays BACKLOG until its command contract
-  satisfies the Definition of Ready; OQ-14 target-host evidence is still outstanding.
+- Pull rule: S-06.01.01 is reopened and is the only active repair. S-06.02.01 is blocked
+  until the verifier passes from the product owner's Windows worktree.
 - Escalation rule: Increment 1 stories are BLOCKED by AUDIT-2026-08-28 and explicitly
   escalated. R1 is the approved repair work that resolves those blockers.
 - Target-host rule: Linux and CI can prove deterministic source behaviour; OQ-01 still
   blocks claims that require a real Windows Sandbox launch.
-- Review checkpoint: GitHub Actions run 33249923094 passed the verifier, 21 Python tests,
-  portable PowerShell, and Windows PowerShell 5.1 on 2026-08-29. Live launch remains blocked.
+- Review checkpoint: GitHub Actions run 33250123130 passed, but the product owner's
+  Windows run then exposed parent-worktree Git discovery on 2026-08-29. DONE was withdrawn.
 
 ## Story board
 
@@ -48,8 +48,8 @@ BACKLOG_APPROVED: true
 | S-05.02.02 | BACKLOG | 5 | S-02.01.01; OQ-07 |
 | S-05.03.01 | BACKLOG | 5 | S-04.01.02; S-05.01.01 |
 | S-05.03.02 | BACKLOG | 5 | S-05.02.02; S-05.03.01 |
-| S-06.01.01 | DONE | R1 | Evidence below; AL-02,18,20,21,22 repaired |
-| S-06.02.01 | DONE | R1 | Evidence below; AL-01,03,09,10,11,13,14,15,19 repaired |
+| S-06.01.01 | IN_PROGRESS | R1 | repair-for=S-06.01.01; exact-root Git verification regression |
+| S-06.02.01 | BLOCKED | R1 | External: product-owner Windows verifier reproduction; escalated=S-06.01.01 |
 | S-06.03.01 | BACKLOG | R1 | S-06.02.01; AL-04,05,06,07,08,23 |
 | S-06.04.01 | BACKLOG | R1 | S-06.03.01; AL-12,16,17 |
 <!-- BOARD_END -->
@@ -63,24 +63,6 @@ result: 4 passed (run 2026-08-29)
 code: scripts/verify_board.py
 commit: 9f1429d68d7e0997e7ec6403fd73dcaa05fdde2f
 criteria: AC-S-00.01.01-01=tests/test_verify_board.py::VerifierContractTests.test_scope_and_board_lies_fail; AC-S-00.01.01-02=tests/test_verify_board.py::VerifierContractTests.test_done_evidence_lies_fail; AC-S-00.01.01-03=tests/test_verify_board.py::VerifierContractTests.test_done_tests_are_rerun_and_summary_is_truthful; AC-S-00.01.01-04=tests/test_project_contract.py::ProjectContractTests.test_ci_and_pre_push_run_required_checks
-END EVIDENCE
-
-EVIDENCE S-06.01.01
-tests: tests/test_verify_board.py::VerifierContractTests.test_commit_must_resolve_in_git_repository; tests/test_verify_board.py::VerifierContractTests.test_implemented_backlog_story_fails; tests/test_verify_board.py::VerifierContractTests.test_summary_does_not_overclaim_coverage; tests/test_verify_board.py::VerifierContractTests.test_escalated_blocker_requires_explicit_repair
-command: python -m unittest tests.test_verify_board.VerifierContractTests.test_commit_must_resolve_in_git_repository tests.test_verify_board.VerifierContractTests.test_implemented_backlog_story_fails tests.test_verify_board.VerifierContractTests.test_summary_does_not_overclaim_coverage tests.test_verify_board.VerifierContractTests.test_escalated_blocker_requires_explicit_repair -v
-result: 4 passed (run 2026-08-29)
-code: scripts/verify_board.py
-commit: 9f1429d68d7e0997e7ec6403fd73dcaa05fdde2f
-criteria: AC-S-06.01.01-01=tests/test_verify_board.py::VerifierContractTests.test_commit_must_resolve_in_git_repository; AC-S-06.01.01-02=tests/test_verify_board.py::VerifierContractTests.test_implemented_backlog_story_fails; AC-S-06.01.01-03=tests/test_verify_board.py::VerifierContractTests.test_summary_does_not_overclaim_coverage; AC-S-06.01.01-04=tests/test_verify_board.py::VerifierContractTests.test_escalated_blocker_requires_explicit_repair
-END EVIDENCE
-
-EVIDENCE S-06.02.01
-tests: tests/Invoke-SourceAcceptance.ps1::Test-ReparseTraversal; tests/Invoke-SourceAcceptance.ps1::Test-GeneratedStrictProfile; tests/Invoke-SourceAcceptance.ps1::Test-RelativeProtectedPaths; tests/Invoke-SourceAcceptance.ps1::Test-StateWriteContract
-command: powershell -NoProfile -File tests/Invoke-SourceAcceptance.ps1
-result: 4 passed on pwsh and Windows PowerShell 5.1; CI run 33249923094 (run 2026-08-29)
-code: scripts/Airlock.Common.ps1; scripts/New-AirlockProfile.ps1; scripts/Initialize-Airlock.ps1
-commit: 4605ab01e3cc19692f3dd878f1f5810761783f27
-criteria: AC-S-06.02.01-01=tests/Invoke-SourceAcceptance.ps1::Test-ReparseTraversal; AC-S-06.02.01-02=tests/Invoke-SourceAcceptance.ps1::Test-GeneratedStrictProfile; AC-S-06.02.01-03=tests/Invoke-SourceAcceptance.ps1::Test-RelativeProtectedPaths; AC-S-06.02.01-04=tests/Invoke-SourceAcceptance.ps1::Test-StateWriteContract
 END EVIDENCE
 
 ## Deferred register
