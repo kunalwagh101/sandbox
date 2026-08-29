@@ -25,7 +25,7 @@ current state. Planned paths are not claims that files already exist.
 | S-05.02.02 | R-SEC-03 | secret modes | redaction and teardown tests | BACKLOG |
 | S-05.03.01 | R-OPS-01..03 | README and safe diagnostics | workflow smoke tests | BACKLOG |
 | S-05.03.02 | R-PERM-05; R-OPS-04; R-SEC-03 | stop, residue report, purge | teardown and path-safety tests | BACKLOG |
-| S-06.01.01 | Delivery repair AL-02,18,20,21,22 | scripts/verify_board.py; BOARD.md | exact-root Git test; fresh-clone evidence | IN_PROGRESS — Windows regression reproduced |
-| S-06.02.01 | Security repair AL-01,03,09,10,11,13,14,15,19 | common/profile/initialiser controls; PowerShell CI | tests/Invoke-SourceAcceptance.ps1; CI run 33249923094 | BLOCKED — verifier repair |
+| S-06.01.01 | Delivery repair AL-02,18,20,21,22 | scripts/verify_board.py; BOARD.md | exact-root Git test; CI run 33254551558 | DONE |
+| S-06.02.01 | Security repair AL-01,03,09,10,11,13,14,15,19 | common/profile/initialiser controls; PowerShell CI | tests/Invoke-SourceAcceptance.ps1; CI run 33254551558 | DONE |
 | S-06.03.01 | Lifecycle repair AL-04..08,23 | Start-Airlock.ps1; Stop-Airlock.ps1; benchmark teardown | tests/Invoke-LifecycleAcceptance.ps1; target-host acceptance | BACKLOG |
 | S-06.04.01 | Product-truth repair AL-12,16,17 | provisioning correlation; docs; deferred register | provenance acceptance; project contract test | BACKLOG |

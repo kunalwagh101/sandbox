@@ -32,6 +32,8 @@
   and the pre-push gate; CI now checks out full history so evidence commits resolve.
 - Closed the executed PowerShell boundary after GitHub Actions run 33249923094 passed on
   both PowerShell 7 and Windows PowerShell 5.1.
+- Re-closed the verifier and PowerShell boundary only after the exact-root repair passed
+  GitHub Actions run 33254551558, including Windows repository tests.
 
 ### Added
 
