@@ -26,6 +26,8 @@
 - Made initialiser `-WhatIf` results say `planned` and `PolicyWritten=false`.
 - Added portable PowerShell source acceptance to Ubuntu CI, Windows PowerShell 5.1 CI,
   and the pre-push gate; CI now checks out full history so evidence commits resolve.
+- Closed the executed PowerShell boundary after GitHub Actions run 33249923094 passed on
+  both PowerShell 7 and Windows PowerShell 5.1.
 
 ### Added
 

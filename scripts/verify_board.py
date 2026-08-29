@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Set, Tuple
@@ -632,7 +633,15 @@ def _safe_evidence_command(
         referenced_paths = {_split_test_ref(test_ref)[0] for test_ref in test_refs}
         if referenced_paths != {script_text}:
             return None, "PowerShell evidence command does not match named test files"
-        return arguments, ""
+        if executable.startswith("powershell"):
+            engine_candidates = ("powershell", "powershell.exe", "pwsh", "pwsh.exe")
+        else:
+            engine_candidates = ("pwsh", "pwsh.exe", "powershell", "powershell.exe")
+        engine = next(
+            (resolved for name in engine_candidates if (resolved := shutil.which(name))),
+            engine_candidates[0],
+        )
+        return [engine, *arguments[1:]], ""
 
     return None, "evidence command must use Python unittest or a PowerShell test script"
 

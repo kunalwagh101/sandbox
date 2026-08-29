@@ -3,6 +3,7 @@ import subprocess
 import tempfile
 import textwrap
 import unittest
+from unittest import mock
 
 from scripts.verify_board import (
     BoardItem,
@@ -11,6 +12,7 @@ from scripts.verify_board import (
     BASELINE_REQUIREMENT_IDS,
     RepositoryVerifier,
     _board_flow_errors,
+    _safe_evidence_command,
     format_result,
 )
 
@@ -356,6 +358,27 @@ class VerifierContractTests(unittest.TestCase):
         result = RepositoryVerifier(fixture.root, run_evidence_tests=False).verify()
         self.assertFalse(result.ok)
         self.assertIn("must run unittest", "\n".join(result.errors))
+
+    def test_powershell_evidence_selects_an_installed_engine(self):
+        fixture = FixtureRepository()
+        self.addCleanup(fixture.cleanup)
+        test_script = fixture.root / "tests" / "test_source.ps1"
+        test_script.write_text("function Test-One { return $true }\n", encoding="utf-8")
+        available = {"pwsh": "/usr/bin/pwsh"}
+        with mock.patch(
+            "scripts.verify_board.shutil.which",
+            side_effect=lambda name: available.get(name),
+        ):
+            command, reason = _safe_evidence_command(
+                fixture.root,
+                "powershell -NoProfile -File tests/test_source.ps1",
+                ("tests/test_source.ps1::Test-One",),
+            )
+        self.assertEqual("", reason)
+        self.assertEqual(
+            ["/usr/bin/pwsh", "-NoProfile", "-File", "tests/test_source.ps1"],
+            command,
+        )
 
     def test_commit_must_resolve_in_git_repository(self):
         fixture = FixtureRepository(status="DONE")

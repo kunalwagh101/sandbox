@@ -14,14 +14,14 @@ BACKLOG_APPROVED: true
 - Increment: R1 — Restore launch and evidence truth
 - Sprint goal: Remove the reproduced launch blocker, execute the PowerShell security
   boundary in CI, make session cleanup truthful, and remove unsupported product claims.
-- Pull rule: S-06.02.01 is the only active story. Later repair stories stay BACKLOG until
-  its executed PowerShell evidence is complete.
+- Pull rule: S-06.02.01 is complete. S-06.03.01 stays BACKLOG until its command contract
+  satisfies the Definition of Ready; OQ-14 target-host evidence is still outstanding.
 - Escalation rule: Increment 1 stories are BLOCKED by AUDIT-2026-08-28 and explicitly
   escalated. R1 is the approved repair work that resolves those blockers.
 - Target-host rule: Linux and CI can prove deterministic source behaviour; OQ-01 still
   blocks claims that require a real Windows Sandbox launch.
-- Review checkpoint: The product owner's Windows run reproduced AL-01 and AL-02 on
-  2026-08-29. The repaired verifier now passes 21 tests; Windows launch remains blocked.
+- Review checkpoint: GitHub Actions run 33249923094 passed the verifier, 21 Python tests,
+  portable PowerShell, and Windows PowerShell 5.1 on 2026-08-29. Live launch remains blocked.
 
 ## Story board
 
@@ -49,7 +49,7 @@ BACKLOG_APPROVED: true
 | S-05.03.01 | BACKLOG | 5 | S-04.01.02; S-05.01.01 |
 | S-05.03.02 | BACKLOG | 5 | S-05.02.02; S-05.03.01 |
 | S-06.01.01 | DONE | R1 | Evidence below; AL-02,18,20,21,22 repaired |
-| S-06.02.01 | IN_REVIEW | R1 | Python checks pass; executed PowerShell CI evidence pending |
+| S-06.02.01 | DONE | R1 | Evidence below; AL-01,03,09,10,11,13,14,15,19 repaired |
 | S-06.03.01 | BACKLOG | R1 | S-06.02.01; AL-04,05,06,07,08,23 |
 | S-06.04.01 | BACKLOG | R1 | S-06.03.01; AL-12,16,17 |
 <!-- BOARD_END -->
@@ -72,6 +72,15 @@ result: 4 passed (run 2026-08-29)
 code: scripts/verify_board.py
 commit: 9f1429d68d7e0997e7ec6403fd73dcaa05fdde2f
 criteria: AC-S-06.01.01-01=tests/test_verify_board.py::VerifierContractTests.test_commit_must_resolve_in_git_repository; AC-S-06.01.01-02=tests/test_verify_board.py::VerifierContractTests.test_implemented_backlog_story_fails; AC-S-06.01.01-03=tests/test_verify_board.py::VerifierContractTests.test_summary_does_not_overclaim_coverage; AC-S-06.01.01-04=tests/test_verify_board.py::VerifierContractTests.test_escalated_blocker_requires_explicit_repair
+END EVIDENCE
+
+EVIDENCE S-06.02.01
+tests: tests/Invoke-SourceAcceptance.ps1::Test-ReparseTraversal; tests/Invoke-SourceAcceptance.ps1::Test-GeneratedStrictProfile; tests/Invoke-SourceAcceptance.ps1::Test-RelativeProtectedPaths; tests/Invoke-SourceAcceptance.ps1::Test-StateWriteContract
+command: powershell -NoProfile -File tests/Invoke-SourceAcceptance.ps1
+result: 4 passed on pwsh and Windows PowerShell 5.1; CI run 33249923094 (run 2026-08-29)
+code: scripts/Airlock.Common.ps1; scripts/New-AirlockProfile.ps1; scripts/Initialize-Airlock.ps1
+commit: 4605ab01e3cc19692f3dd878f1f5810761783f27
+criteria: AC-S-06.02.01-01=tests/Invoke-SourceAcceptance.ps1::Test-ReparseTraversal; AC-S-06.02.01-02=tests/Invoke-SourceAcceptance.ps1::Test-GeneratedStrictProfile; AC-S-06.02.01-03=tests/Invoke-SourceAcceptance.ps1::Test-RelativeProtectedPaths; AC-S-06.02.01-04=tests/Invoke-SourceAcceptance.ps1::Test-StateWriteContract
 END EVIDENCE
 
 ## Deferred register
