@@ -176,6 +176,48 @@ def parse_coverage(backlog_text: str) -> Dict[str, Set[str]]:
     return coverage
 
 
+def parse_change_requirements(backlog_text: str) -> Tuple[int, Set[str]]:
+    expected_match = re.search(
+        r"^EXPECTED_CHANGE_REQUIREMENTS:\s*(\d+)\s*$",
+        backlog_text,
+        re.MULTILINE,
+    )
+    if not expected_match:
+        raise ValueError("PRODUCT_BACKLOG.md lacks EXPECTED_CHANGE_REQUIREMENTS")
+    rows = _table_rows(
+        _marked_section(
+            backlog_text, "CHANGE_REQUIREMENTS_START", "CHANGE_REQUIREMENTS_END"
+        )
+    )
+    change_ids = [
+        row[0]
+        for row in rows
+        if row and re.fullmatch(r"CR-\d{4}-\d{2}-\d{2}-\d{2}", row[0])
+    ]
+    duplicates = sorted(
+        item for item, count in collections.Counter(change_ids).items() if count > 1
+    )
+    if duplicates:
+        raise ValueError(f"duplicate change requirement IDs: {', '.join(duplicates)}")
+    return int(expected_match.group(1)), set(change_ids)
+
+
+def parse_change_coverage(backlog_text: str) -> Dict[str, Set[str]]:
+    rows = _table_rows(
+        _marked_section(backlog_text, "CHANGE_COVERAGE_START", "CHANGE_COVERAGE_END")
+    )
+    coverage: Dict[str, Set[str]] = {}
+    for row in rows:
+        if len(row) < 2 or not re.fullmatch(
+            r"CR-\d{4}-\d{2}-\d{2}-\d{2}", row[0]
+        ):
+            continue
+        if row[0] in coverage:
+            raise ValueError(f"duplicate change coverage row: {row[0]}")
+        coverage[row[0]] = set(re.findall(r"S-\d{2}\.\d{2}\.\d{2}", row[1]))
+    return coverage
+
+
 def parse_contract_coverage(backlog_text: str) -> Dict[str, Set[str]]:
     rows = _table_rows(
         _marked_section(
@@ -668,6 +710,8 @@ class RepositoryVerifier:
             board_text = _read(self.root / "BOARD.md")
             expected, requirements = parse_requirements(backlog_text)
             coverage = parse_coverage(backlog_text)
+            expected_changes, change_requirements = parse_change_requirements(backlog_text)
+            change_coverage = parse_change_coverage(backlog_text)
             contract_coverage = parse_contract_coverage(backlog_text)
             expected_audit, audit_findings = parse_audit_findings(backlog_text)
             stories = parse_stories(backlog_text)
@@ -715,6 +759,31 @@ class RepositoryVerifier:
             if missing_stories:
                 errors.append(
                     f"{requirement_id} maps to unknown stories: {', '.join(missing_stories)}"
+                )
+
+        if len(change_requirements) != expected_changes:
+            errors.append(
+                "change requirement manifest count is "
+                f"{len(change_requirements)}; expected {expected_changes}"
+            )
+        missing_change_coverage = sorted(change_requirements - set(change_coverage))
+        extra_change_coverage = sorted(set(change_coverage) - change_requirements)
+        if missing_change_coverage:
+            errors.append(
+                "orphan change requirements: " + ", ".join(missing_change_coverage)
+            )
+        if extra_change_coverage:
+            errors.append(
+                "change coverage contains undeclared requirements: "
+                + ", ".join(extra_change_coverage)
+            )
+        for change_id, story_ids in sorted(change_coverage.items()):
+            if not story_ids:
+                errors.append(f"{change_id} maps to no story")
+            missing_stories = sorted(story_ids - set(stories))
+            if missing_stories:
+                errors.append(
+                    f"{change_id} maps to unknown stories: {', '.join(missing_stories)}"
                 )
 
         missing_contracts = sorted(BASELINE_CONTRACT_IDS - set(contract_coverage))

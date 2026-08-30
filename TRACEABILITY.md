@@ -29,3 +29,4 @@ current state. Planned paths are not claims that files already exist.
 | S-06.02.01 | Security repair AL-01,03,09,10,11,13,14,15,19 | common/profile/initialiser controls; PowerShell CI | tests/Invoke-SourceAcceptance.ps1; CI run 33254551558 | DONE |
 | S-06.03.01 | Lifecycle repair AL-04..08,23 | Start-Airlock.ps1; Stop-Airlock.ps1; benchmark teardown | tests/Invoke-LifecycleAcceptance.ps1; target-host acceptance | BACKLOG |
 | S-06.04.01 | Product-truth repair AL-12,16,17 | provisioning correlation; docs; deferred register | provenance acceptance; project contract test | BACKLOG |
+| S-06.05.01 | CR-2026-08-30-01; R-PLAT-01..03; R-OPS-02 | scripts/Start-Airlock.ps1; strict `.wsb` profile | tests/Invoke-CompatibilityAcceptance.ps1; managed-CLI regression; Windows 10 live acceptance | IN_PROGRESS |

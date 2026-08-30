@@ -6,16 +6,22 @@ question can change its shape.
 
 ## OQ-01 — Target Windows edition and build
 
-- Status: OPEN — BLOCKS TARGET-HOST ACCEPTANCE
+- Status: ANSWERED FOR IMPLEMENTATION — BLOCKS LIVE ACCEPTANCE ONLY
 - Ambiguity: Exact edition, build, Sandbox feature state, and hardware virtualisation state.
 - Options: Home, Pro, Enterprise, or Education; before or after build 26100.
 - Recommended default: Build the fail-safe preflight now; collect machine facts before
   claiming Windows acceptance.
-- Evidence needed: Get-ComputerInfo output and Sandbox/virtualisation preflight.
-- Blast radius: Total. Home lacks Windows Sandbox; pre-24H2 removes required runtime CLI.
+- Evidence received: Windows 10 Pro 22H2, build 19045; hardware checks passed, the
+  Sandbox feature is disabled, `wsb.exe` is absent, and the product owner approved
+  CR-2026-08-30-01 on 2026-08-30.
+- Blast radius: Total. Windows 10 requires the legacy `.wsb` launcher because the
+  managed runtime CLI begins with Windows 11 24H2.
 - Blocks: Windows runtime evidence and DONE status for Increment 1. It does not block
   source implementation after the product owner's explicit build instruction.
-- Answer: Product owner approved implementation on 2026-08-27. Machine facts remain pending.
+- Answer: Support exactly two contracts: Windows 10 Pro 22H2 build 19045 through
+  `WindowsSandbox.exe`, and Windows 11 Pro/Enterprise/Education build 26100+ through
+  `wsb.exe`. The strict `.wsb` security policy is shared. Live acceptance remains pending
+  until the product owner enables Windows Sandbox and reboots.
 - Evidence command: `scripts\Start-Airlock.ps1 -PreflightOnly`, followed by
   `tests\Invoke-Increment1Acceptance.ps1 -RunLive` on the target Windows host.
 
@@ -169,6 +175,25 @@ question can change its shape.
 - Blast radius: High. A wrong ID can orphan a live sandbox or stop the wrong session.
 - Blocks: Target-host DONE evidence for S-06.03.01 and S-01.01.01.
 - Answer: Source repair approved on 2026-08-29; target-host contract evidence pending.
+
+## OQ-15 — Windows 10 legacy process identity
+
+- Status: ANSWERED FOR IMPLEMENTATION — TARGET-HOST VALIDATION PENDING
+- Ambiguity: Windows 10 has no managed Sandbox ID, list, or stop CLI. The older native
+  launcher exposes only a host process after starting a `.wsb` configuration.
+- Options: Refuse Windows 10; track the exact launcher process; or falsely treat a PID as
+  a managed Sandbox ID.
+- Recommended default: Track the exact `WindowsSandbox.exe` PID, process start time, and
+  executable path; refuse an existing instance; label lifecycle control `legacy-process`;
+  never populate `sandboxId` in this mode.
+- Evidence needed: Run compatibility acceptance after enabling Sandbox on build 19045,
+  observe one process identity, successful provisioning, and clean manual/guarded close.
+- Blast radius: Medium. The hypervisor and strict mappings are unchanged, but automated
+  session reconciliation is weaker than the Windows 11 managed CLI.
+- Blocks: DONE for S-06.05.01, not implementation; the command shape is fixed by the
+  approved Microsoft native `.wsb` launcher contract.
+- Answer: Product owner accepted Windows 10 compatibility on 2026-08-30 with truthful
+  lifecycle labelling rather than feature equivalence.
 
 ## Known limitation — telemetry is SOFT
 

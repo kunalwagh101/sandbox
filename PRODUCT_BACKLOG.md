@@ -87,6 +87,20 @@ EXPECTED_REQUIREMENTS: 45
 | R-SEC-04 | Host-controlled audit integrity |
 <!-- REQUIREMENTS_END -->
 
+## Approved change requirements
+
+The binding brief still contains its original 45 requirements. Product-owner changes
+made after approval are additive and remain separately countable so the source manifest
+is not silently rewritten.
+
+EXPECTED_CHANGE_REQUIREMENTS: 1
+
+<!-- CHANGE_REQUIREMENTS_START -->
+| Change ID | Requirement | Approval | Blast radius |
+|---|---|---|---|
+| CR-2026-08-30-01 | Support Windows 10 Pro 22H2 build 19045 while preserving Windows 11 24H2+ support and the strict Sandbox policy. | APPROVED by product owner through the direct build instruction on 2026-08-30. | High: launch API, preflight, lifecycle evidence, documentation, and target-host acceptance. |
+<!-- CHANGE_REQUIREMENTS_END -->
+
 ## Delivery and role contract coverage
 
 These contract IDs do not add product scope to the 45 R-IDs. They prove that the delivery,
@@ -103,8 +117,8 @@ work also map to backlog stories.
 | C-DEL-05 | S-00.01.01, S-06.01.01 | Standard-library verifier, CI, pre-push, and seeded lie |
 | C-DEL-06 | S-00.01.01 | Sprint goal, demo, retro, change control, and traceability |
 | C-AI-01 | S-00.01.01, S-05.02.01 | Problem, data, baseline, AI decision, evaluation honesty, and limits |
-| C-PROD-01 | S-01.01.01, S-03.01.01, S-04.01.02, S-05.03.01 | Customer value, workflows, rules, metrics, exceptions, and risk |
-| C-ARCH-01 | S-01.01.01, S-01.02.01, S-02.01.02 | Native, minimal, scalable architecture and build-versus-buy decisions |
+| C-PROD-01 | S-01.01.01, S-03.01.01, S-04.01.02, S-05.03.01, S-06.05.01 | Customer value, workflows, rules, metrics, exceptions, and risk |
+| C-ARCH-01 | S-01.01.01, S-01.02.01, S-02.01.02, S-06.05.01 | Native, minimal, scalable architecture and build-versus-buy decisions |
 | C-ENG-01 | S-00.01.01, S-01.02.01, S-02.01.02 | Reuse, standard library, native features, and smallest safe implementation |
 | C-SEC-01 | S-01.02.01, S-04.01.01, S-05.01.01, S-05.02.01, S-05.02.02, S-06.02.01 | Threats, validation, authorisation, secrets, and negative controls |
 | C-PERF-01 | S-01.02.03, S-03.02.01, S-06.03.01 | RAM, disk, launch, CPU, and transition-latency budgets |
@@ -692,6 +706,32 @@ work also map to backlog stories.
   - T-06.04.01.c: Validate correlation before accepting provisioning success.
   - T-06.04.01.d: Correct README, architecture, open-question, board, and demo claims.
 
+### F-06.05 — Cross-version native launch
+
+- Parent: E-06
+- Capability: Select the native Sandbox control path for the approved Windows version
+  without weakening the generated security profile or overstating lifecycle control.
+
+#### Story S-06.05.01 — Windows 10 and Windows 11 safe launch
+
+- User story: As an Airlock user on Windows 10 Pro 22H2 or Windows 11 24H2+, I want the same launch command to select the supported native Sandbox path, so that I can use the strict workspace without upgrading only for the control CLI.
+- Business value: E-06 — makes the requested host usable while preserving truthful security and lifecycle claims.
+- Increment: R2
+- Size: M
+- Leading indicator: Version-aware preflight and launch contracts passing for both supported platform modes.
+- Dependencies: S-06.02.01.
+- Blocking risk: Windows 10 has no `wsb.exe` session ID; live evidence must confirm the legacy `WindowsSandbox.exe` process identity and shutdown behaviour before DONE.
+- Acceptance criteria:
+  - AC-S-06.05.01-01 | Given Windows 10 Pro build 19045 or Windows 11 Pro build 26100+, When the pure platform contract runs, Then it selects `legacy-wsb` or `managed-cli` respectively and rejects unsupported editions, builds, architectures, or missing native launchers. | Test: tests/Invoke-CompatibilityAcceptance.ps1::Test-PlatformContract
+  - AC-S-06.05.01-02 | Given the Windows 10 mode, When launch source is inspected and exercised with process fixtures, Then it invokes only `%SystemRoot%\System32\WindowsSandbox.exe` with the generated `.wsb`, refuses an existing instance, and records a guarded process identity rather than inventing a Sandbox ID. | Test: tests/Invoke-CompatibilityAcceptance.ps1::Test-LegacyProcessIdentity
+  - AC-S-06.05.01-03 | Given the Windows 11 mode, When launch runs, Then the existing `wsb.exe start/list --raw` path and exact Sandbox-ID state remain selected. | Test: tests/test_increment1_contract.py::Increment1ContractTests.test_version_aware_launch_preserves_managed_cli
+  - AC-S-06.05.01-04 | Given the approved change requirement, When the verifier runs, Then the change ID maps to this story and cannot become an orphan. | Test: tests/test_project_contract.py::ProjectContractTests.test_approved_change_is_traceable
+- Tasks:
+  - T-06.05.01.a: Add a pure version, edition, architecture, and launcher selection contract.
+  - T-06.05.01.b: Add bounded legacy launch and process-identity recording without changing strict XML.
+  - T-06.05.01.c: Add cross-version negative controls and preserve managed-CLI regressions.
+  - T-06.05.01.d: Update setup, demo, architecture, risk, migration, and rollback documentation.
+
 ## Approved audit repair register
 
 The product owner reproduced AL-01 and AL-02 and approved this complete register on
@@ -783,6 +823,16 @@ The verifier compares the fixed 45-ID source manifest above with this table.
 
 **Coverage total: 45 / 45. Orphan requirements: 0.**
 
+## Approved change → Backlog coverage
+
+<!-- CHANGE_COVERAGE_START -->
+| Change ID | Covered by story | Coverage intent |
+|---|---|---|
+| CR-2026-08-30-01 | S-06.05.01 | Windows 10 Pro 22H2 compatibility plus preserved Windows 11 24H2+ path |
+<!-- CHANGE_COVERAGE_END -->
+
+**Approved-change coverage total: 1 / 1. Orphan change requirements: 0.**
+
 ## Explicit OUT_OF_SCOPE for the MVP
 
 - Domain-level egress filtering: it needs an in-guest proxy; per-application firewall
@@ -791,8 +841,8 @@ The verifier compares the fixed 45-ID source manifest above with this table.
   bounded session, and concurrency would widen lifecycle and grant risks.
 - GPU compute or local-model inference: the requested tools are remote-service clients and
   strict mode disables vGPU to reduce attack surface and RAM use.
-- macOS, Linux-host, or Windows Home support: the selected HARD boundary and runtime CLI
-  are Windows Sandbox capabilities unavailable on those hosts.
+- macOS, Linux-host, Windows Home, Windows 10 before 22H2, and Windows 11 before 24H2:
+  those hosts are outside the two approved, testable native Sandbox contracts.
 - WSL2 Track B implementation: it is a separate CLI-only architecture and remains OQ-09
   for post-MVP review.
 - Automated malware analysis or behaviour monitoring: Airlock contains tools; it does not

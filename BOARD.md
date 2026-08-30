@@ -4,22 +4,23 @@
 **Single source of truth:** This table, not chat.
 **WIP limit:** IN_PROGRESS <= 1 for the current single-engineer workflow.
 **Backlog approval:** APPROVED by product owner on 2026-08-27. The product owner
-approved the 23-finding repair register on 2026-08-29 after reproducing AL-01 and AL-02.
+approved the 23-finding repair register on 2026-08-29 after reproducing AL-01 and AL-02,
+and approved CR-2026-08-30-01 through the direct Windows 10 build instruction.
 
 WIP_LIMIT: 1
 BACKLOG_APPROVED: true
 
 ## Current sprint
 
-- Increment: R1 — Restore launch and evidence truth
-- Sprint goal: Remove the reproduced launch blocker, execute the PowerShell security
-  boundary in CI, make session cleanup truthful, and remove unsupported product claims.
-- Pull rule: S-06.01.01 and S-06.02.01 are complete. S-06.03.01 stays BACKLOG until
-  OQ-14 supplies the target-host `wsb.exe` command contract required by Ready.
+- Increment: R2 — Cross-version safe launch
+- Sprint goal: Launch the same strict offline Airlock on Windows 10 Pro 22H2 and Windows
+  11 24H2+ through their correct native control paths, with truthful lifecycle state.
+- Pull rule: S-06.05.01 is the only active story. S-06.03.01 and S-06.04.01 remain
+  BACKLOG and are not silently absorbed into this compatibility slice.
 - Escalation rule: Increment 1 stories are BLOCKED by AUDIT-2026-08-28 and explicitly
   escalated. R1 is the approved repair work that resolves those blockers.
-- Target-host rule: Linux and CI can prove deterministic source behaviour; OQ-01 still
-  blocks claims that require a real Windows Sandbox launch.
+- Target-host rule: Source tests can prove deterministic selection and state contracts;
+  OQ-15 blocks DONE until Windows 10 build 19045 live acceptance runs.
 - Review checkpoint: The product owner's Windows regression was reproduced deterministically;
   exact-root repair commit eb0a204 passed GitHub Actions run 33254551558 on 2026-08-29.
 
@@ -52,6 +53,7 @@ BACKLOG_APPROVED: true
 | S-06.02.01 | DONE | R1 | Evidence below; PowerShell boundary revalidated after verifier repair |
 | S-06.03.01 | BACKLOG | R1 | S-06.02.01; AL-04,05,06,07,08,23 |
 | S-06.04.01 | BACKLOG | R1 | S-06.03.01; AL-12,16,17 |
+| S-06.05.01 | IN_PROGRESS | R2 | repair-for=S-01.01.01; approved=CR-2026-08-30-01; OQ-15 blocks DONE only |
 <!-- BOARD_END -->
 
 ## Evidence ledger

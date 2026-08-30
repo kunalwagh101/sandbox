@@ -18,6 +18,7 @@ from scripts.verify_board import (
 
 
 STORY_ID = "S-00.00.01"
+CHANGE_ID = "CR-2026-08-30-01"
 TEST_REF = "tests/test_sample.py::SampleTests.test_exists"
 TEST_SELECTOR = "tests.test_sample.SampleTests.test_exists"
 
@@ -36,6 +37,10 @@ def _coverage_rows(omit_last=False):
     return "\n        ".join(
         f"| {requirement_id} | {STORY_ID} |" for requirement_id in requirement_ids
     )
+
+
+def _change_coverage_rows(omit=False):
+    return "" if omit else f"| {CHANGE_ID} | {STORY_ID} |"
 
 
 def _contract_rows(omit_last=False):
@@ -60,6 +65,7 @@ def _audit_rows(omit_last=False):
 def _backlog(
     test_ref=TEST_REF,
     omit_last_coverage=False,
+    omit_change_coverage=False,
     omit_last_contract=False,
     omit_last_audit=False,
 ):
@@ -74,6 +80,20 @@ def _backlog(
         |---|---|
         {_requirement_rows()}
         <!-- REQUIREMENTS_END -->
+
+        EXPECTED_CHANGE_REQUIREMENTS: 1
+
+        <!-- CHANGE_REQUIREMENTS_START -->
+        | Change ID | Requirement |
+        |---|---|
+        | {CHANGE_ID} | Fixture approved change |
+        <!-- CHANGE_REQUIREMENTS_END -->
+
+        <!-- CHANGE_COVERAGE_START -->
+        | Change ID | Backlog story IDs |
+        |---|---|
+        {_change_coverage_rows(omit_change_coverage)}
+        <!-- CHANGE_COVERAGE_END -->
 
         <!-- CONTRACT_COVERAGE_START -->
         | Contract ID | Backlog story IDs |
@@ -171,6 +191,7 @@ class FixtureRepository:
         test_ref=TEST_REF,
         evidence=None,
         omit_last_coverage=False,
+        omit_change_coverage=False,
         omit_last_contract=False,
         omit_last_audit=False,
         board_story_id=STORY_ID,
@@ -202,6 +223,7 @@ class FixtureRepository:
             _backlog(
                 test_ref,
                 omit_last_coverage,
+                omit_change_coverage,
                 omit_last_contract,
                 omit_last_audit,
             ),
@@ -249,6 +271,10 @@ class VerifierContractTests(unittest.TestCase):
     def test_scope_and_board_lies_fail(self):
         cases = (
             (FixtureRepository(omit_last_coverage=True), "orphan requirements:"),
+            (
+                FixtureRepository(omit_change_coverage=True),
+                "orphan change requirements:",
+            ),
             (
                 FixtureRepository(omit_last_contract=True),
                 "orphan delivery contracts:",

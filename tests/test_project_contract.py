@@ -4,6 +4,8 @@ import unittest
 from scripts.verify_board import (
     BASELINE_REQUIREMENT_IDS,
     RepositoryVerifier,
+    parse_change_requirements,
+    parse_change_coverage,
     parse_requirements,
 )
 
@@ -22,6 +24,14 @@ class ProjectContractTests(unittest.TestCase):
     def test_current_repository_passes_without_running_evidence(self):
         result = RepositoryVerifier(ROOT, run_evidence_tests=False).verify()
         self.assertTrue(result.ok, "\n".join(result.errors))
+
+    def test_approved_change_is_traceable(self):
+        backlog = (ROOT / "PRODUCT_BACKLOG.md").read_text(encoding="utf-8")
+        expected, changes = parse_change_requirements(backlog)
+        coverage = parse_change_coverage(backlog)
+        self.assertEqual(1, expected)
+        self.assertEqual({"CR-2026-08-30-01"}, changes)
+        self.assertEqual({"S-06.05.01"}, coverage["CR-2026-08-30-01"])
 
     def test_ci_and_pre_push_run_required_checks(self):
         hook = (ROOT / ".githooks" / "pre-push").read_text(encoding="utf-8")
