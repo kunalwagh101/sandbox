@@ -23,8 +23,10 @@ function Resolve-AirlockPlatform {
         throw "Unsupported architecture '$Architecture'. Recovery: use AMD64 or ARM64 Windows."
     }
 
-    $managedPath = Join-Path $SystemRoot 'System32\wsb.exe'
-    $legacyPath = Join-Path $SystemRoot 'System32\WindowsSandbox.exe'
+    # Keep this pure and portable: CI exercises Windows decisions from Linux pwsh too.
+    $root = $SystemRoot.TrimEnd([char[]]@('\', '/'))
+    $managedPath = $root + '\System32\wsb.exe'
+    $legacyPath = $root + '\System32\WindowsSandbox.exe'
 
     if ($Caption -match 'Windows 11') {
         if ($Build -lt 26100) {
