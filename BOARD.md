@@ -12,18 +12,20 @@ BACKLOG_APPROVED: true
 
 ## Current sprint
 
-- Increment: R2 — Cross-version safe launch
-- Sprint goal: Launch the same strict offline Airlock on Windows 10 Pro 22H2 and Windows
-  11 24H2+ through their correct native control paths, with truthful lifecycle state.
-- Pull rule: S-06.05.01 is the only R2 story. S-06.03.01 and S-06.04.01 remain BACKLOG
-  and are not silently absorbed into this compatibility slice.
+- Increment: R1-L — Fail-safe session lifecycle
+- Sprint goal: Every Airlock session is identified without ambiguous GUID scraping and
+  can be stopped, reconciled, and cleaned without leaving a guest or owned staging data.
+- Pull rule: S-06.03.01 is the only story in progress. S-06.05.01 remains IN_REVIEW
+  pending its target-host evidence; S-06.04.01 remains BACKLOG and is not silently
+  absorbed into this lifecycle slice.
 - Escalation rule: Increment 1 stories are BLOCKED by AUDIT-2026-08-28 and explicitly
   escalated. R1 is the approved repair work that resolves those blockers.
-- Target-host rule: Source tests can prove deterministic selection and state contracts;
-  OQ-15 blocks DONE until Windows 10 build 19045 live acceptance runs.
-- Review checkpoint: Cross-version source, Python contracts, verifier, PowerShell 7, and
-  Windows PowerShell 5.1 passed GitHub Actions run 33367645830 on 2026-08-31. R2 is now
-  IN_REVIEW pending OQ-15 target-host evidence.
+- Target-host rule: Source tests can prove deterministic parsing, cleanup, and state
+  contracts; OQ-14 and OQ-15 block DONE until Windows 11 24H2 and Windows 10 build 19045
+  live lifecycle acceptance runs.
+- Planning checkpoint: R2 source gates passed GitHub Actions run 33367645830 on
+  2026-08-31. The product owner's 2026-08-31 build instruction pulled S-06.03.01 as the
+  next vertical repair slice.
 
 ## Story board
 
@@ -52,7 +54,7 @@ BACKLOG_APPROVED: true
 | S-05.03.02 | BACKLOG | 5 | S-05.02.02; S-05.03.01 |
 | S-06.01.01 | DONE | R1 | Evidence below; exact-root Git verification repaired |
 | S-06.02.01 | DONE | R1 | Evidence below; PowerShell boundary revalidated after verifier repair |
-| S-06.03.01 | BACKLOG | R1 | S-06.02.01; AL-04,05,06,07,08,23 |
+| S-06.03.01 | IN_PROGRESS | R1-L | S-06.02.01; AL-04,05,06,07,08,23; OQ-14/OQ-15 target evidence blocks DONE |
 | S-06.04.01 | BACKLOG | R1 | S-06.03.01; AL-12,16,17 |
 | S-06.05.01 | IN_REVIEW | R2 | source-ci=33367645830; repair-for=S-01.01.01; approved=CR-2026-08-30-01; OQ-15 target-host evidence blocks DONE |
 <!-- BOARD_END -->
