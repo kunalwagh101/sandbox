@@ -14,6 +14,8 @@
   online browsing as DEFERRED rather than silently narrowing R-APP-04.
 - Corrected the nonce limitation text: correlation is planned in S-06.04.01 and does not
   exist in the current implementation.
+- Added approved change CR-2026-08-30-01 and story S-06.05.01 for Windows 10 Pro 22H2
+  build 19045 compatibility while preserving Windows 11 24H2+ support.
 
 ### Fixed
 
@@ -34,6 +36,14 @@
   both PowerShell 7 and Windows PowerShell 5.1.
 - Re-closed the verifier and PowerShell boundary only after the exact-root repair passed
   GitHub Actions run 33254551558, including Windows repository tests.
+- Split host/version failure messages so Windows 10 is not falsely reported as an
+  unsupported `Professional` edition.
+- Added version-aware launch selection: Windows 10 build 19045 uses the legacy native
+  `.wsb` launcher; Windows 11 build 26100+ retains the managed `wsb.exe` lifecycle.
+- Windows 10 state now records PID, executable path, and process creation identity and
+  intentionally leaves `sandboxId` empty rather than claiming feature equivalence.
+- Resource measurement and live acceptance now clean up each launch using the correct
+  lifecycle contract.
 
 ### Added
 
@@ -49,6 +59,9 @@
 - Static negative-control tests, target-Windows acceptance script, three-run resource
   collector with collect-only and enforced modes, and Windows PowerShell parser CI.
 - Architecture, threat-boundary, launch, rollback, and pasteable demo documentation.
+- `scripts/Airlock.Platform.ps1` for deterministic Windows 10/11 platform selection.
+- `tests/Invoke-CompatibilityAcceptance.ps1`, wired into CI and pre-push, to prove both
+  platform contracts and legacy process-identity rules without starting a real Sandbox.
 
 ### Security
 
@@ -57,12 +70,20 @@
 - Increment 1 uses a new per-session read-only bootstrap, checks installer signature/hash
   on both host and guest, rejects reparse/broad/audit mappings, and disables network,
   microphone, camera, clipboard, printer, and vGPU explicitly.
+- Windows 10 compatibility does not alter the generated strict `.wsb` profile. Only the
+  native lifecycle control changes.
+- Legacy termination is allowed only after recorded PID, executable path, and process
+  creation identity still match, reducing PID-reuse risk.
 
 ### Migration and rollback
 
-- No Windows runtime, database, or user data changed in Increment 0.
-- Roll back the repository contract by reverting the Increment 0 commits. Disable the
-  local tracked hook, if installed, with `git config --unset core.hooksPath`.
-- Source development changed no Windows host. On a target host, initialisation writes only
-  under `%LOCALAPPDATA%\Airlock`; launch creates disposable guest state and per-session
-  staging. Stop a live guest with `wsb stop --id <sandbox-id>` before any manual cleanup.
+- No database or guest-state migration is required.
+- Host `active-session.json` remains schema version 1 and gains `launchMode`,
+  `lifecycleControl`, and legacy process-identity fields. Existing Windows 11
+  `sandboxId` behaviour is preserved.
+- Roll back S-06.05.01 by reverting its source commits. Existing policy locks and pinned
+  packages remain valid because the strict `.wsb` policy and installer contract did not
+  change.
+- Before rollback or manual cleanup, close any running Windows Sandbox. On Windows 11,
+  managed cleanup may use `wsb stop --id <sandbox-id>`. On Windows 10, never kill a PID
+  unless executable path and process creation identity match recorded Airlock state.
