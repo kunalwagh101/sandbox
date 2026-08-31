@@ -4,38 +4,71 @@ Airlock launches Brave inside a strict, offline Windows Sandbox without ambient 
 to the host user profile, Desktop, Documents, clipboard, microphone, camera, printers,
 GPU, or network.
 
-**Delivery status:** Increment 0 is DONE. Increment 1 source is implemented and under
-review. It is not DONE until the live acceptance script passes on a supported Windows
-machine. Backlog approval was recorded on 2026-08-27.
+**Delivery status:** Increment 0 is DONE. Increment 1 remains evidence-gated. The
+Windows 10 compatibility repair `S-06.05.01` is implemented in source but cannot be
+called DONE until live acceptance passes on the target Windows 10 Pro 22H2 build 19045
+machine after Windows Sandbox is enabled and the machine is rebooted.
+
+## Supported host modes
+
+Airlock now uses one command and two native Windows Sandbox control paths:
+
+| Host | Launch mode | Lifecycle evidence |
+|---|---|---|
+| Windows 10 Pro 22H2, build 19045, AMD64 | `legacy-wsb` | Exact `WindowsSandbox.exe` PID, executable path, and process creation identity. No Sandbox ID is claimed. |
+| Windows 11 Pro/Enterprise/Education, build 26100+ | `managed-cli` | Existing `wsb.exe start/list/stop --raw` path and managed Sandbox ID. |
+
+The generated `.wsb` security profile is shared. The Windows 10 path does **not** weaken
+network, device, clipboard, mapping, ProtectedClient, or memory policy. The lifecycle
+control is simply weaker because the older Windows Sandbox runtime does not expose the
+new managed CLI. Airlock reports that difference explicitly instead of pretending the
+platforms are equivalent.
+
+Microsoft documents Windows Sandbox and `.wsb` configuration for Windows 10 and Windows
+11. The newer Store-based Sandbox and command-line lifecycle begin with Windows 11 24H2.
 
 ## What this increment does
 
-- Checks Windows edition, build, CPU architecture, RAM, disk, hardware virtualisation,
-  the Sandbox feature, and the 24H2 `wsb.exe` CLI before changing anything.
-- Pins a user-supplied Brave standalone installer by valid Authenticode publisher,
-  exact SHA-256, and version; Airlock never downloads an executable silently.
+- Checks Windows edition/version/build, CPU architecture, RAM, disk, hardware
+  virtualisation, the Sandbox feature, and the correct native launcher before changing
+  anything.
+- Selects `WindowsSandbox.exe` on the approved Windows 10 build and `wsb.exe` on Windows
+  11 24H2+.
+- Pins a user-supplied Brave standalone installer by valid Authenticode publisher, exact
+  SHA-256, and version; Airlock never downloads an executable silently.
 - Generates a deny-by-default Sandbox profile from `policy.json`.
 - Copies only the pinned installer, pinned guest script, and policy lock into a fresh
   per-session bootstrap directory and maps it read-only.
 - Maps one new, empty result directory writable for non-secret provisioning telemetry.
-- Refuses concurrent launches and refuses to start beside another active Sandbox.
-- Records the Sandbox ID and host-only session state under
-  `%LOCALAPPDATA%\Airlock\state`.
+- Refuses concurrent launches. Windows 10 refuses an already-running verified
+  `WindowsSandbox.exe`; Windows 11 refuses an existing managed Sandbox session.
+- Records host-only session state under `%LOCALAPPDATA%\Airlock\state`.
 
-Brave is deliberately **offline** in Increment 1. Online browsing needs the later egress
-and LAN-isolation story; enabling networking now would silently weaken the boundary.
+Brave is deliberately **offline** in this increment. Online browsing needs the later
+egress and LAN-isolation story; enabling networking now would silently weaken the
+boundary.
 
 ## Requirements
 
-- Windows 11 Pro, Enterprise, or Education, version 24H2 / build 26100 or newer.
-- AMD64 or ARM64, hardware virtualisation and SLAT, at least 4 GB RAM, two CPU cores,
-  and 1 GB free disk.
+For both modes:
+
+- Pro, Enterprise, or Education edition. Home and Server are not supported.
+- Hardware virtualisation and SLAT, at least 4 GB RAM, two CPU cores, and 1 GB free disk.
 - The optional Windows feature `Containers-DisposableClientVM` enabled.
 - An official Brave `BraveBrowserStandaloneSilentSetup.exe` downloaded by you.
 
-Microsoft's [Windows Sandbox installation guide](https://learn.microsoft.com/en-us/windows/security/application-security/application-isolation/windows-sandbox/windows-sandbox-install)
-explains how to enable the feature. Brave publishes installers on its
-[official release page](https://github.com/brave/brave-browser/releases).
+Supported OS contracts:
+
+- Windows 10 Pro 22H2 build **19045**, AMD64.
+- Windows 11 Pro/Enterprise/Education build **26100 or newer**, AMD64 or ARM64.
+
+### Enable Windows Sandbox
+
+Open **Administrator PowerShell** and run:
+
+    Enable-WindowsOptionalFeature -Online -FeatureName Containers-DisposableClientVM -All
+
+Then reboot if Windows asks you to.
 
 ## Build and launch
 
@@ -45,6 +78,10 @@ Open Windows PowerShell in this repository.
 
        powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File scripts\Start-Airlock.ps1 -PreflightOnly
 
+   A passing Windows 10 machine should report `PlatformMode = legacy-wsb` and
+   `LifecycleControl = legacy-process`. A passing Windows 11 24H2+ machine should report
+   `PlatformMode = managed-cli` and `LifecycleControl = managed-id`.
+
 2. Pin the signed Brave standalone installer once:
 
        powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File scripts\Initialize-Airlock.ps1 -InstallerPath C:\path\to\BraveBrowserStandaloneSilentSetup.exe
@@ -53,46 +90,59 @@ Open Windows PowerShell in this repository.
 
        powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File scripts\Start-Airlock.ps1
 
-The command prints the Sandbox ID, host-only state file, and provisioning-result path.
-The Brave window should appear inside Windows Sandbox. Close the Sandbox window when
-finished; its guest state is disposable in this increment.
+The command prints the launch mode, host-only state file, and provisioning-result path.
+Windows 11 additionally prints the managed Sandbox ID. Windows 10 prints the guarded
+process ID instead and intentionally leaves `SandboxId` empty.
 
-If Windows marks scripts from a downloaded archive as remote, inspect them first and
-use `Unblock-File` only on the reviewed Airlock `.ps1` files. Do not lower the machine's
-global execution policy.
+If Windows marks scripts from a downloaded archive as remote, inspect them first and use
+`Unblock-File` only on reviewed Airlock `.ps1` files. Do not lower the machine's global
+execution policy.
 
 ## Verify
 
-Repository checks, runnable on any development host:
+Repository checks:
 
     python -m unittest discover -s tests -v
     python scripts/verify_board.py
 
-Execute the deterministic PowerShell boundary before any live Sandbox launch:
+Portable PowerShell boundaries:
 
     powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File tests\Invoke-SourceAcceptance.ps1
+    powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File tests\Invoke-CompatibilityAcceptance.ps1
 
-On Linux or macOS development hosts with PowerShell 7, use `pwsh` instead of
-`powershell.exe`. This test creates only temporary fixtures; it does not start Sandbox.
-
-Live Windows acceptance after initialisation:
+Live target-host acceptance after initialisation:
 
     powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File tests\Invoke-Increment1Acceptance.ps1 -RunLive
 
-First collect a three-launch resource baseline without inventing limits:
+The live acceptance script understands both launch modes. On Windows 10 it verifies that
+no managed Sandbox ID is invented and that PID + executable path + process creation
+identity still point to the launched native Sandbox process before cleanup.
+
+Collect a three-launch resource baseline without inventing limits:
 
     powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File tests\Measure-Increment1.ps1 -CollectOnly
 
 After the product owner approves limits, rerun with all three explicit thresholds. The
 script exits non-zero for any failed run or exceeded limit.
 
+## Migration and rollback
+
+There is no database or guest-state migration. The host state file keeps schema version 1
+and gains version-aware lifecycle fields: `launchMode`, `lifecycleControl`, and Windows
+10 process identity fields. Existing Windows 11 `sandboxId` behaviour is preserved.
+
+Rollback is code-only: return to the commit before `S-06.05.01`. Existing package and
+policy locks remain valid because the strict `.wsb` profile format and pinned package
+contract did not change. If a legacy Sandbox is running during rollback, close Windows
+Sandbox first; never kill a PID that has not been identity-checked.
+
 ## Delivery method
 
-Airlock uses a fixed-scope Scrum increment with a Kanban execution board and a one-story
-WIP limit. Scrum fits because the MVP is a sequence of testable vertical security slices;
-the Kanban limit prevents partially verified security work from being hidden in parallel.
-`BOARD.md`, not chat, is the state. A story becomes DONE only when the verifier re-runs
-resolvable evidence.
+Airlock uses a **Scrum + Kanban hybrid**. Scrum gives each security change a fixed,
+reviewable vertical increment. Kanban supplies the repository board and WIP limit so one
+security slice is finished or escalated before another is pulled. `BOARD.md`, not chat,
+is state. A story becomes DONE only when the verifier re-runs resolvable evidence and all
+required target-host evidence exists.
 
 See [architecture and threat boundaries](docs/ARCHITECTURE.md), [pasteable demo](DEMO.md),
 [open decisions](OPEN_QUESTIONS.md), and [traceability](TRACEABILITY.md).

@@ -1,7 +1,6 @@
 import copy
 import json
 from pathlib import Path
-import re
 import unittest
 
 
@@ -38,6 +37,9 @@ class Increment1ContractTests(unittest.TestCase):
     def setUpClass(cls):
         cls.policy = json.loads((ROOT / "policy.json").read_text(encoding="utf-8"))
         cls.common = (ROOT / "scripts" / "Airlock.Common.ps1").read_text(
+            encoding="utf-8"
+        )
+        cls.platform = (ROOT / "scripts" / "Airlock.Platform.ps1").read_text(
             encoding="utf-8"
         )
         cls.initialize = (ROOT / "scripts" / "Initialize-Airlock.ps1").read_text(
@@ -91,8 +93,10 @@ class Increment1ContractTests(unittest.TestCase):
             self.assertIn(f"'{element}'", self.profile)
 
     def test_preflight_refuses_unsupported_or_ambiguous_hosts(self):
+        combined = self.start + self.platform
         for requirement in (
-            "Windows 11 Pro, Enterprise, or Education",
+            "Windows 10/11 Pro, Enterprise, or Education",
+            "Windows 10 22H2 build 19045",
             "below 26100",
             "AMD64",
             "ARM64",
@@ -102,8 +106,9 @@ class Increment1ContractTests(unittest.TestCase):
             "Hardware virtualisation or SLAT",
             "Containers-DisposableClientVM",
             "System32\\wsb.exe",
+            "System32\\WindowsSandbox.exe",
         ):
-            self.assertIn(requirement, self.start)
+            self.assertIn(requirement, combined)
         self.assertIn("Airlock preflight failed", self.start)
         self.assertLess(
             self.start.index("$preflight = Invoke-AirlockPreflight"),
@@ -112,12 +117,10 @@ class Increment1ContractTests(unittest.TestCase):
 
     def test_launch_is_single_session_hash_checked_and_atomic(self):
         self.assertIn("Local\\Airlock-Launch", self.start)
-        self.assertLess(
-            self.start.index("@('list', '--raw')"),
-            self.start.index("'start', '--config'"),
-        )
         self.assertIn("another Windows Sandbox is active", self.start)
+        self.assertIn("WindowsSandbox.exe is already active", self.start)
         self.assertIn("Get-AirlockSessionIdAfterStart", self.start)
+        self.assertIn("Get-NewLegacySandboxProcess", self.start)
         self.assertIn("active-session.json", self.start)
         self.assertIn("Write-AirlockJsonAtomic", self.start)
         self.assertIn("[IO.File]::Replace($temporary, $destination, $backup)", self.common)
@@ -126,6 +129,19 @@ class Increment1ContractTests(unittest.TestCase):
         self.assertGreaterEqual(self.start.count("Get-FileHash"), 5)
         self.assertIn("provisioning script changed after initialisation", self.start)
         self.assertIn("bootstrapMapping = 'read-only'", self.start)
+
+    def test_version_aware_launch_preserves_managed_cli(self):
+        self.assertIn("Mode = 'managed-cli'", self.platform)
+        self.assertIn("Mode = 'legacy-wsb'", self.platform)
+        self.assertIn("LifecycleControl = 'managed-id'", self.platform)
+        self.assertIn("LifecycleControl = 'legacy-process'", self.platform)
+        self.assertIn("if ($preflight.PlatformMode -eq 'managed-cli')", self.start)
+        self.assertIn("Invoke-WsbRaw -WsbPath $preflight.LauncherPath", self.start)
+        self.assertIn("'start', '--config', $profileXml, '--raw'", self.start)
+        self.assertIn("Start-Process -FilePath $preflight.LauncherPath", self.start)
+        self.assertIn("processCreationDate", self.start)
+        self.assertIn("processExecutablePath", self.start)
+        self.assertIn("$sessionId = $null", self.start)
 
     def test_initializer_pins_signed_installer_and_provisioner(self):
         self.assertIn("Get-AuthenticodeSignature", self.initialize)
