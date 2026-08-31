@@ -20,7 +20,7 @@ current state. Planned paths are not claims that files already exist.
 | S-04.01.01 | R-ISO-02; R-DATA-01..03,05; R-OPS-03 | scripts/Grant-AirlockFolder.ps1 | path and read-only tests | BACKLOG |
 | S-04.01.02 | R-DATA-03..05 | approved export transaction | cancellation, scope, and audit tests | BACKLOG |
 | S-04.01.03 | R-DATA-06 | clipboard probes | weakened and hardened profile tests | BACKLOG |
-| S-05.01.01 | R-ISO-07 | guest firewall policy | app, LAN, and negative probes | BACKLOG |
+| S-05.01.01 | R-ISO-07 | guest firewall policy | app, LAN, and negative probes | DEFERRED — online browsing intentionally outside offline Increment 1 |
 | S-05.02.01 | R-SEC-01,02 | control catalogue and threat model | documentation lint | BACKLOG |
 | S-05.02.02 | R-SEC-03 | secret modes | redaction and teardown tests | BACKLOG |
 | S-05.03.01 | R-OPS-01..03 | README and safe diagnostics | workflow smoke tests | BACKLOG |
@@ -29,4 +29,4 @@ current state. Planned paths are not claims that files already exist.
 | S-06.02.01 | Security repair AL-01,03,09,10,11,13,14,15,19 | common/profile/initialiser controls; PowerShell CI | tests/Invoke-SourceAcceptance.ps1; CI run 33254551558 | DONE |
 | S-06.03.01 | Lifecycle repair AL-04..08,23 | Start-Airlock.ps1; Stop-Airlock.ps1; benchmark teardown | tests/Invoke-LifecycleAcceptance.ps1; target-host acceptance | BACKLOG |
 | S-06.04.01 | Product-truth repair AL-12,16,17 | provisioning correlation; docs; deferred register | provenance acceptance; project contract test | BACKLOG |
-| S-06.05.01 | CR-2026-08-30-01; R-PLAT-01..03; R-OPS-02 | scripts/Start-Airlock.ps1; strict `.wsb` profile | tests/Invoke-CompatibilityAcceptance.ps1; managed-CLI regression; Windows 10 live acceptance | IN_PROGRESS |
+| S-06.05.01 | CR-2026-08-30-01; R-PLAT-01..03; R-OPS-02 | scripts/Airlock.Platform.ps1; scripts/Start-Airlock.ps1; shared strict `.wsb` profile; version-aware acceptance and benchmark cleanup | tests/Invoke-CompatibilityAcceptance.ps1; tests/test_increment1_contract.py; tests/test_project_contract.py; tests/Invoke-Increment1Acceptance.ps1 -RunLive on Windows 10 build 19045 | IN_PROGRESS — source implemented; OQ-15 live target-host evidence still gates IN_REVIEW/DONE transition |
