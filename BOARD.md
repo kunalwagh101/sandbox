@@ -15,14 +15,15 @@ BACKLOG_APPROVED: true
 - Increment: R2 — Cross-version safe launch
 - Sprint goal: Launch the same strict offline Airlock on Windows 10 Pro 22H2 and Windows
   11 24H2+ through their correct native control paths, with truthful lifecycle state.
-- Pull rule: S-06.05.01 is the only active story. S-06.03.01 and S-06.04.01 remain
-  BACKLOG and are not silently absorbed into this compatibility slice.
+- Pull rule: S-06.05.01 is the only R2 story. S-06.03.01 and S-06.04.01 remain BACKLOG
+  and are not silently absorbed into this compatibility slice.
 - Escalation rule: Increment 1 stories are BLOCKED by AUDIT-2026-08-28 and explicitly
   escalated. R1 is the approved repair work that resolves those blockers.
 - Target-host rule: Source tests can prove deterministic selection and state contracts;
   OQ-15 blocks DONE until Windows 10 build 19045 live acceptance runs.
-- Review checkpoint: The product owner's Windows regression was reproduced deterministically;
-  exact-root repair commit eb0a204 passed GitHub Actions run 33254551558 on 2026-08-29.
+- Review checkpoint: Cross-version source, Python contracts, verifier, PowerShell 7, and
+  Windows PowerShell 5.1 passed GitHub Actions run 33367645830 on 2026-08-31. R2 is now
+  IN_REVIEW pending OQ-15 target-host evidence.
 
 ## Story board
 
@@ -53,7 +54,7 @@ BACKLOG_APPROVED: true
 | S-06.02.01 | DONE | R1 | Evidence below; PowerShell boundary revalidated after verifier repair |
 | S-06.03.01 | BACKLOG | R1 | S-06.02.01; AL-04,05,06,07,08,23 |
 | S-06.04.01 | BACKLOG | R1 | S-06.03.01; AL-12,16,17 |
-| S-06.05.01 | IN_PROGRESS | R2 | repair-for=S-01.01.01; approved=CR-2026-08-30-01; OQ-15 blocks DONE only |
+| S-06.05.01 | IN_REVIEW | R2 | source-ci=33367645830; repair-for=S-01.01.01; approved=CR-2026-08-30-01; OQ-15 target-host evidence blocks DONE |
 <!-- BOARD_END -->
 
 ## Evidence ledger
