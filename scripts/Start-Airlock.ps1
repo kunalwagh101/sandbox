@@ -431,7 +431,8 @@ try {
         $sessionId = Get-AirlockSessionIdAfterStart -WsbPath $preflight.LauncherPath -StartJson $startJson
     }
     else {
-        Start-Process -FilePath $preflight.LauncherPath -ArgumentList @($profilePath) -PassThru | Out-Null
+        $profileArgument = '"' + $profilePath + '"'
+        Start-Process -FilePath $preflight.LauncherPath -ArgumentList @($profileArgument) -PassThru | Out-Null
         $legacyProcess = Get-NewLegacySandboxProcess -LauncherPath $preflight.LauncherPath -BeforeProcessIds $legacyBeforeIds
     }
 
@@ -476,11 +477,11 @@ try {
         }
         try {
             Stop-AirlockLegacyProcessGuarded -ProcessId ([int]$legacyProcess.ProcessId) -LauncherPath $preflight.LauncherPath -CreationDate ([string]$legacyProcess.CreationDate)
-            throw "Airlock stopped the unrecorded legacy Sandbox because session state could not be saved: $stateError"
         }
         catch {
             throw "CRITICAL: Airlock could not safely record or stop legacy Sandbox PID $($legacyProcess.ProcessId). Close Windows Sandbox manually. State error: $stateError. Stop detail: $($_.Exception.Message)"
         }
+        throw "Airlock stopped the unrecorded legacy Sandbox because session state could not be saved: $stateError"
     }
 
     $result = [PSCustomObject]@{
