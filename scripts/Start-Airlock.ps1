@@ -1,19 +1,18 @@
 [CmdletBinding()]
 param(
     [string]$PolicyPath,
-
     [switch]$PreflightOnly,
-
     [switch]$AsJson
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'Airlock.Common.ps1')
+. (Join-Path $PSScriptRoot 'Airlock.Platform.ps1')
 
 function Invoke-AirlockPreflight {
     if ($env:OS -ne 'Windows_NT') {
-        throw 'Airlock requires Windows 11 Pro, Enterprise, or Education. This host is not Windows.'
+        throw 'Airlock requires Windows 10/11 Pro, Enterprise, or Education. This host is not Windows.'
     }
 
     $failures = New-Object Collections.Generic.List[string]
@@ -24,15 +23,7 @@ function Invoke-AirlockPreflight {
     $edition = [string]$currentVersion.EditionID
     $build = 0
     if (-not [int]::TryParse([string]$currentVersion.CurrentBuildNumber, [ref]$build)) {
-        $failures.Add('Windows build could not be read. Recovery: run winver and install Windows 11 24H2 or newer.')
-    }
-
-    $supportedEdition = $edition -match '^(Professional|Enterprise|Education)'
-    if (-not $supportedEdition -or [int]$os.ProductType -ne 1 -or [string]$os.Caption -notmatch 'Windows 11') {
-        $failures.Add("Unsupported Windows edition '$edition'. Recovery: use Windows 11 Pro, Enterprise, or Education; Home and Server are not supported.")
-    }
-    if ($build -lt 26100) {
-        $failures.Add("Windows build $build is below 26100. Recovery: install Windows 11 24H2 or newer so wsb.exe is available.")
+        $failures.Add('Windows build could not be read. Recovery: run winver and use Windows 10 22H2 build 19045 or Windows 11 24H2+.')
     }
 
     $architecture = if ([string]::IsNullOrWhiteSpace($env:PROCESSOR_ARCHITEW6432)) {
@@ -41,8 +32,26 @@ function Invoke-AirlockPreflight {
     else {
         [string]$env:PROCESSOR_ARCHITEW6432
     }
-    if ($architecture -notin @('AMD64', 'ARM64')) {
-        $failures.Add("Unsupported architecture '$architecture'. Recovery: use an AMD64 or ARM64 Windows host.")
+
+    $systemRoot = [string]$env:SystemRoot
+    $managedPath = Join-Path $systemRoot 'System32\wsb.exe'
+    $legacyPath = Join-Path $systemRoot 'System32\WindowsSandbox.exe'
+    $platform = $null
+    if ($build -gt 0) {
+        try {
+            $platform = Resolve-AirlockPlatform `
+                -Caption ([string]$os.Caption) `
+                -Edition $edition `
+                -ProductType ([int]$os.ProductType) `
+                -Build $build `
+                -Architecture $architecture `
+                -SystemRoot $systemRoot `
+                -ManagedCliExists (Test-Path -LiteralPath $managedPath -PathType Leaf) `
+                -LegacyLauncherExists (Test-Path -LiteralPath $legacyPath -PathType Leaf)
+        }
+        catch {
+            $failures.Add($_.Exception.Message)
+        }
     }
 
     $memoryBytes = [UInt64]$computer.TotalPhysicalMemory
@@ -82,11 +91,16 @@ function Invoke-AirlockPreflight {
     $featureState = 'Unavailable'
     try {
         $feature = Get-CimInstance -ClassName Win32_OptionalFeature -Filter "Name='Containers-DisposableClientVM'"
-        $featureState = switch ([int]$feature.InstallState) {
-            1 { 'Enabled' }
-            2 { 'Disabled' }
-            3 { 'Absent' }
-            default { 'Unknown' }
+        if ($null -eq $feature) {
+            $featureState = 'Absent'
+        }
+        else {
+            $featureState = switch ([int]$feature.InstallState) {
+                1 { 'Enabled' }
+                2 { 'Disabled' }
+                3 { 'Absent' }
+                default { 'Unknown' }
+            }
         }
         if ($featureState -ne 'Enabled') {
             $failures.Add("Windows Sandbox feature state is '$featureState'. Recovery (administrator PowerShell): Enable-WindowsOptionalFeature -Online -FeatureName Containers-DisposableClientVM -All, then reboot.")
@@ -96,11 +110,6 @@ function Invoke-AirlockPreflight {
         $failures.Add("Windows Sandbox feature state could not be read through Win32_OptionalFeature. Recovery: open administrator PowerShell and run Get-WindowsOptionalFeature -Online -FeatureName Containers-DisposableClientVM. Detail: $($_.Exception.Message)")
     }
 
-    $wsbPath = Join-Path $env:SystemRoot 'System32\wsb.exe'
-    if (-not (Test-Path -LiteralPath $wsbPath -PathType Leaf)) {
-        $failures.Add("Windows Sandbox CLI is missing at $wsbPath. Recovery: update to Windows 11 24H2+ and enable Windows Sandbox.")
-    }
-
     if ($failures.Count -gt 0) {
         throw "Airlock preflight failed:`n - $($failures -join "`n - ")"
     }
@@ -108,16 +117,21 @@ function Invoke-AirlockPreflight {
     return [PSCustomObject]@{
         Status = 'passed'
         Edition = $edition
+        WindowsCaption = [string]$os.Caption
         WindowsVersion = [string]$currentVersion.DisplayVersion
         Build = $build
         Architecture = $architecture
+        PlatformMode = [string]$platform.Mode
+        LifecycleControl = [string]$platform.LifecycleControl
+        LauncherPath = [string]$platform.LauncherPath
+        WsbPath = $(if ($platform.Mode -eq 'managed-cli') { [string]$platform.LauncherPath } else { $null })
+        LegacyLauncherPath = $(if ($platform.Mode -eq 'legacy-wsb') { [string]$platform.LauncherPath } else { $null })
         MemoryGB = [Math]::Round($memoryBytes / 1GB, 2)
         LogicalProcessors = $logicalProcessors
         FreeSystemDriveGB = [Math]::Round($freeBytes / 1GB, 2)
         HypervisorPresent = $hypervisorPresent
         FirmwareVirtualisation = $firmwareVirtualisation
         SandboxFeature = $featureState
-        WsbPath = $wsbPath
     }
 }
 
@@ -230,14 +244,46 @@ function Get-AirlockSessionIdAfterStart {
     throw 'Windows Sandbox started without a resolvable session identifier. Run wsb list --raw before retrying.'
 }
 
+function Get-NewLegacySandboxProcess {
+    param(
+        [Parameter(Mandatory = $true)][string]$LauncherPath,
+        [Parameter(Mandatory = $true)][int[]]$BeforeProcessIds
+    )
+
+    for ($attempt = 0; $attempt -lt 40; $attempt++) {
+        $candidate = @(Get-AirlockLegacySandboxProcesses -LauncherPath $LauncherPath | Where-Object {
+                [int]$_.ProcessId -notin $BeforeProcessIds
+            }) | Select-Object -First 1
+        if ($null -ne $candidate) {
+            return $candidate
+        }
+        Start-Sleep -Milliseconds 250
+    }
+    throw 'Windows Sandbox launcher returned without a new verifiable WindowsSandbox.exe process.'
+}
+
+function Stop-AirlockLegacyProcessGuarded {
+    param(
+        [Parameter(Mandatory = $true)][int]$ProcessId,
+        [Parameter(Mandatory = $true)][string]$LauncherPath,
+        [Parameter(Mandatory = $true)][string]$CreationDate
+    )
+
+    $process = Get-CimInstance -ClassName Win32_Process -Filter "ProcessId=$ProcessId" -ErrorAction SilentlyContinue
+    if ($null -eq $process) {
+        return
+    }
+    if ([string]::IsNullOrWhiteSpace([string]$process.ExecutablePath) -or
+        -not [IO.Path]::GetFullPath([string]$process.ExecutablePath).Equals([IO.Path]::GetFullPath($LauncherPath), [StringComparison]::OrdinalIgnoreCase) -or
+        [string]$process.CreationDate -cne $CreationDate) {
+        throw "Refusing to stop PID $ProcessId because its legacy Sandbox identity no longer matches recorded state."
+    }
+    Stop-Process -Id $ProcessId -Force -ErrorAction Stop
+}
+
 $preflight = Invoke-AirlockPreflight
 if ($PreflightOnly) {
-    if ($AsJson) {
-        $preflight | ConvertTo-Json -Depth 5
-    }
-    else {
-        $preflight
-    }
+    if ($AsJson) { $preflight | ConvertTo-Json -Depth 5 } else { $preflight }
     return
 }
 
@@ -292,7 +338,7 @@ if (-not $packagePath.Equals($expectedPackagePath, [StringComparison]::OrdinalIg
 }
 $actualPackageHash = (Get-FileHash -LiteralPath $packagePath -Algorithm SHA256).Hash.ToUpperInvariant()
 if ($actualPackageHash -cne $packageHash) {
-    throw "Pinned Brave package hash mismatch. Re-run Initialize-Airlock.ps1 with a valid signed installer."
+    throw 'Pinned Brave package hash mismatch. Re-run Initialize-Airlock.ps1 with a valid signed installer.'
 }
 $packageSignature = Get-AuthenticodeSignature -LiteralPath $packagePath
 if ($packageSignature.Status -ne [System.Management.Automation.SignatureStatus]::Valid) {
@@ -324,10 +370,20 @@ try {
         throw 'Another Airlock launch is already in progress. Wait for it to finish before retrying.'
     }
 
-    $existingJson = Invoke-WsbRaw -WsbPath $preflight.WsbPath -Arguments @('list', '--raw')
-    $existingIds = @(Get-WsbIds -RawJson $existingJson -ActiveOnly)
-    if ($existingIds.Count -gt 0) {
-        throw "Airlock refuses to start while another Windows Sandbox is active: $($existingIds -join ', '). Stop it explicitly, then retry."
+    $legacyBeforeIds = @()
+    if ($preflight.PlatformMode -eq 'managed-cli') {
+        $existingJson = Invoke-WsbRaw -WsbPath $preflight.LauncherPath -Arguments @('list', '--raw')
+        $existingIds = @(Get-WsbIds -RawJson $existingJson -ActiveOnly)
+        if ($existingIds.Count -gt 0) {
+            throw "Airlock refuses to start while another Windows Sandbox is active: $($existingIds -join ', '). Stop it explicitly, then retry."
+        }
+    }
+    else {
+        $existingLegacy = @(Get-AirlockLegacySandboxProcesses -LauncherPath $preflight.LauncherPath)
+        if ($existingLegacy.Count -gt 0) {
+            throw "Airlock refuses to start while WindowsSandbox.exe is already active: $(@($existingLegacy | ForEach-Object { $_.ProcessId }) -join ', '). Close it, then retry."
+        }
+        $legacyBeforeIds = [int[]]@($existingLegacy | ForEach-Object { [int]$_.ProcessId })
     }
 
     $sessionKey = [Guid]::NewGuid().ToString('N')
@@ -368,16 +424,27 @@ try {
     }
 
     $launchStartedAt = [DateTime]::UtcNow
-    $startJson = Invoke-WsbRaw -WsbPath $preflight.WsbPath -Arguments @(
-        'start', '--config', $profileXml, '--raw'
-    )
-    $sessionId = Get-AirlockSessionIdAfterStart -WsbPath $preflight.WsbPath -StartJson $startJson
+    $sessionId = $null
+    $legacyProcess = $null
+    if ($preflight.PlatformMode -eq 'managed-cli') {
+        $startJson = Invoke-WsbRaw -WsbPath $preflight.LauncherPath -Arguments @('start', '--config', $profileXml, '--raw')
+        $sessionId = Get-AirlockSessionIdAfterStart -WsbPath $preflight.LauncherPath -StartJson $startJson
+    }
+    else {
+        Start-Process -FilePath $preflight.LauncherPath -ArgumentList @($profilePath) -PassThru | Out-Null
+        $legacyProcess = Get-NewLegacySandboxProcess -LauncherPath $preflight.LauncherPath -BeforeProcessIds $legacyBeforeIds
+    }
 
     $statePath = Join-Path (Join-Path $airlockRoot 'state') 'active-session.json'
     $state = [ordered]@{
         schemaVersion = 1
         sessionKey = $sessionKey
+        launchMode = [string]$preflight.PlatformMode
+        lifecycleControl = [string]$preflight.LifecycleControl
         sandboxId = $sessionId
+        processId = $(if ($null -ne $legacyProcess) { [int]$legacyProcess.ProcessId } else { $null })
+        processCreationDate = $(if ($null -ne $legacyProcess) { [string]$legacyProcess.CreationDate } else { $null })
+        processExecutablePath = $(if ($null -ne $legacyProcess) { [string]$legacyProcess.ExecutablePath } else { $null })
         launchedAtUtc = $launchStartedAt.ToString('o')
         configPath = $profilePath
         resultPath = Join-Path $resultPath $resultName
@@ -400,32 +467,37 @@ try {
     }
     catch {
         $stateError = $_.Exception.Message
-        $stopOutput = @(& $preflight.WsbPath stop --id $sessionId --raw 2>&1)
-        if ($LASTEXITCODE -eq 0) {
-            throw "Airlock stopped the unrecorded Sandbox because session state could not be saved: $stateError"
+        if ($preflight.PlatformMode -eq 'managed-cli') {
+            $stopOutput = @(& $preflight.LauncherPath stop --id $sessionId --raw 2>&1)
+            if ($LASTEXITCODE -eq 0) {
+                throw "Airlock stopped the unrecorded Sandbox because session state could not be saved: $stateError"
+            }
+            throw "CRITICAL: Airlock could not record or stop Sandbox $sessionId. Run 'wsb stop --id $sessionId' now. State error: $stateError. Stop output: $(($stopOutput | Out-String).Trim())"
         }
-        throw "CRITICAL: Airlock could not record or stop Sandbox $sessionId. Run 'wsb stop --id $sessionId' now. State error: $stateError. Stop output: $(($stopOutput | Out-String).Trim())"
+        try {
+            Stop-AirlockLegacyProcessGuarded -ProcessId ([int]$legacyProcess.ProcessId) -LauncherPath $preflight.LauncherPath -CreationDate ([string]$legacyProcess.CreationDate)
+            throw "Airlock stopped the unrecorded legacy Sandbox because session state could not be saved: $stateError"
+        }
+        catch {
+            throw "CRITICAL: Airlock could not safely record or stop legacy Sandbox PID $($legacyProcess.ProcessId). Close Windows Sandbox manually. State error: $stateError. Stop detail: $($_.Exception.Message)"
+        }
     }
 
     $result = [PSCustomObject]@{
         Status = 'started'
+        LaunchMode = [string]$preflight.PlatformMode
+        LifecycleControl = [string]$preflight.LifecycleControl
         SandboxId = $sessionId
+        ProcessId = $(if ($null -ne $legacyProcess) { [int]$legacyProcess.ProcessId } else { $null })
         SessionKey = $sessionKey
         ResultPath = $state.resultPath
         StatePath = $statePath
         Networking = 'disabled'
         Message = 'Brave is provisioning inside a strict offline Windows Sandbox.'
     }
-    if ($AsJson) {
-        $result | ConvertTo-Json -Depth 5
-    }
-    else {
-        $result
-    }
+    if ($AsJson) { $result | ConvertTo-Json -Depth 5 } else { $result }
 }
 finally {
-    if ($ownsMutex) {
-        $mutex.ReleaseMutex()
-    }
+    if ($ownsMutex) { $mutex.ReleaseMutex() }
     $mutex.Dispose()
 }
