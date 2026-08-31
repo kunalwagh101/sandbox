@@ -80,7 +80,8 @@ function Test-PlatformContract {
 function Test-LegacyProcessIdentity {
     $source = Get-Content -LiteralPath $startScript -Raw -Encoding UTF8
     Assert-Compatibility -Condition ($source.Contains("Start-Process -FilePath `$preflight.LauncherPath")) -Message 'Legacy launch does not use the selected native launcher.'
-    Assert-Compatibility -Condition ($source.Contains("-ArgumentList @(`$profilePath)")) -Message 'Legacy launch does not pass the generated .wsb profile.'
+    Assert-Compatibility -Condition ($source.Contains("`$profileArgument = '\"' + `$profilePath + '\"'")) -Message 'Legacy .wsb path is not quoted for usernames or directories containing spaces.'
+    Assert-Compatibility -Condition ($source.Contains("-ArgumentList @(`$profileArgument)")) -Message 'Legacy launch does not pass the quoted generated .wsb profile.'
     Assert-Compatibility -Condition ($source.Contains('Get-NewLegacySandboxProcess')) -Message 'Legacy process identity is not resolved after launch.'
     Assert-Compatibility -Condition ($source.Contains('processCreationDate')) -Message 'Legacy process creation identity is not persisted.'
     Assert-Compatibility -Condition ($source.Contains('processExecutablePath')) -Message 'Legacy executable identity is not persisted.'
@@ -88,6 +89,7 @@ function Test-LegacyProcessIdentity {
     Assert-Compatibility -Condition ($source.Contains('Refusing to stop PID')) -Message 'Legacy stop is not identity-guarded.'
     Assert-Compatibility -Condition ($source.Contains("sandboxId = `$sessionId")) -Message 'Shared state schema lost sandboxId field.'
     Assert-Compatibility -Condition ($source.Contains("`$sessionId = `$null")) -Message 'Legacy mode may invent a Sandbox ID.'
+    Assert-Compatibility -Condition ($source.Contains('Airlock stopped the unrecorded legacy Sandbox because session state could not be saved')) -Message 'Legacy state-write cleanup success is not reported distinctly.'
 }
 
 Test-PlatformContract
