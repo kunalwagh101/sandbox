@@ -38,6 +38,9 @@ class ProjectContractTests(unittest.TestCase):
         self.assertIn("scripts/verify_board.py", hook)
         self.assertIn("unittest", hook)
         self.assertNotIn("--no-", hook)
+        self.assertIn("Invoke-SourceAcceptance.ps1", hook)
+        self.assertIn("Invoke-CompatibilityAcceptance.ps1", hook)
+
         workflow = (
             ROOT / ".github" / "workflows" / "verify-board.yml"
         ).read_text(encoding="utf-8")
@@ -47,7 +50,8 @@ class ProjectContractTests(unittest.TestCase):
         self.assertIn("runs-on: windows-latest", workflow)
         self.assertIn("Language.Parser]::ParseFile", workflow)
         self.assertGreaterEqual(workflow.count("Invoke-SourceAcceptance.ps1"), 2)
-        self.assertIn("Invoke-SourceAcceptance.ps1", hook)
+        self.assertGreaterEqual(workflow.count("Invoke-CompatibilityAcceptance.ps1"), 2)
+
 
 if __name__ == "__main__":
     unittest.main()
