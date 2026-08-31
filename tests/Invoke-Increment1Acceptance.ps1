@@ -1,7 +1,6 @@
 [CmdletBinding()]
 param(
     [string]$InstallerPath,
-
     [switch]$RunLive
 )
 
@@ -19,16 +18,26 @@ function Assert-Acceptance {
         [Parameter(Mandatory = $true)][bool]$Condition,
         [Parameter(Mandatory = $true)][string]$Message
     )
-    if (-not $Condition) {
-        throw $Message
-    }
+    if (-not $Condition) { throw $Message }
 }
 
 function Test-Preflight {
     $result = & $startScript -PreflightOnly
     Assert-Acceptance -Condition ($result.Status -eq 'passed') -Message 'Supported-host preflight did not pass.'
-    Assert-Acceptance -Condition ($result.Build -ge 26100) -Message 'Preflight accepted a build below 26100.'
     Assert-Acceptance -Condition ($result.SandboxFeature -eq 'Enabled') -Message 'Preflight accepted a disabled Sandbox feature.'
+    if ($result.PlatformMode -eq 'legacy-wsb') {
+        Assert-Acceptance -Condition ($result.Build -eq 19045) -Message 'Legacy mode accepted a Windows 10 build other than 19045.'
+        Assert-Acceptance -Condition ($result.LifecycleControl -eq 'legacy-process') -Message 'Legacy lifecycle control is mislabeled.'
+        Assert-Acceptance -Condition (Test-Path -LiteralPath $result.LegacyLauncherPath -PathType Leaf) -Message 'Legacy launcher is absent.'
+    }
+    elseif ($result.PlatformMode -eq 'managed-cli') {
+        Assert-Acceptance -Condition ($result.Build -ge 26100) -Message 'Managed CLI mode accepted a build below 26100.'
+        Assert-Acceptance -Condition ($result.LifecycleControl -eq 'managed-id') -Message 'Managed lifecycle control is mislabeled.'
+        Assert-Acceptance -Condition (Test-Path -LiteralPath $result.WsbPath -PathType Leaf) -Message 'Managed wsb.exe CLI is absent.'
+    }
+    else {
+        throw "Unknown platform mode '$($result.PlatformMode)'."
+    }
 }
 
 function Test-StrictProfile {
@@ -65,9 +74,7 @@ function Test-StrictProfile {
     try {
         & $profileScript -PolicyPath $weakenedPath -AirlockRoot $airlockRoot -BootstrapPath $bootstrap -ResultPath $result -OutputPath (Join-Path $testRoot 'weak.wsb') | Out-Null
     }
-    catch {
-        $weakMessage = $_.Exception.Message
-    }
+    catch { $weakMessage = $_.Exception.Message }
     Assert-Acceptance `
         -Condition ($null -ne $weakMessage -and $weakMessage -like '*Strict policy requires sandbox.audioInput=Disable*') `
         -Message "Audio weakening failed for the wrong reason: '$weakMessage'."
@@ -76,20 +83,44 @@ function Test-StrictProfile {
     try {
         & $profileScript -PolicyPath (Join-Path $bootstrap 'policy.lock.json') -AirlockRoot $airlockRoot -BootstrapPath $env:USERPROFILE -ResultPath $result -OutputPath (Join-Path $testRoot 'unsafe.wsb') | Out-Null
     }
-    catch {
-        $unsafeMessage = $_.Exception.Message
-    }
+    catch { $unsafeMessage = $_.Exception.Message }
     Assert-Acceptance `
         -Condition ($null -ne $unsafeMessage -and $unsafeMessage -like '*mapping must be a child of the Airlock root*') `
         -Message "Broad mapping failed for the wrong reason: '$unsafeMessage'."
 }
 
+function Assert-LegacyProcessIdentity {
+    param(
+        [Parameter(Mandatory = $true)][object]$State
+    )
+    Assert-Acceptance -Condition ($State.lifecycleControl -eq 'legacy-process') -Message 'State does not label legacy lifecycle control.'
+    Assert-Acceptance -Condition ([string]::IsNullOrWhiteSpace([string]$State.sandboxId)) -Message 'Legacy state invented a Sandbox ID.'
+    Assert-Acceptance -Condition ([int]$State.processId -gt 0) -Message 'Legacy state has no process ID.'
+    $process = Get-CimInstance -ClassName Win32_Process -Filter "ProcessId=$([int]$State.processId)" -ErrorAction SilentlyContinue
+    Assert-Acceptance -Condition ($null -ne $process) -Message 'Recorded legacy Sandbox process is not running.'
+    Assert-Acceptance `
+        -Condition ([string]$process.ExecutablePath -and [IO.Path]::GetFullPath([string]$process.ExecutablePath).Equals([IO.Path]::GetFullPath([string]$State.processExecutablePath), [StringComparison]::OrdinalIgnoreCase)) `
+        -Message 'Legacy Sandbox executable path no longer matches state.'
+    Assert-Acceptance -Condition ([string]$process.CreationDate -ceq [string]$State.processCreationDate) -Message 'Legacy Sandbox process creation identity no longer matches state.'
+    return $process
+}
+
 function Test-LiveLaunch {
     $launch = & $startScript
     Assert-Acceptance -Condition ($launch.Status -eq 'started') -Message 'Airlock did not report a started sandbox.'
-    Assert-Acceptance -Condition (-not [string]::IsNullOrWhiteSpace([string]$launch.SandboxId)) -Message 'No Sandbox ID was recorded.'
-    $result = $null
+    $state = $null
     try {
+        if ($launch.LaunchMode -eq 'managed-cli') {
+            Assert-Acceptance -Condition (-not [string]::IsNullOrWhiteSpace([string]$launch.SandboxId)) -Message 'Managed launch recorded no Sandbox ID.'
+        }
+        elseif ($launch.LaunchMode -eq 'legacy-wsb') {
+            Assert-Acceptance -Condition ([string]::IsNullOrWhiteSpace([string]$launch.SandboxId)) -Message 'Legacy launch falsely recorded a Sandbox ID.'
+            Assert-Acceptance -Condition ([int]$launch.ProcessId -gt 0) -Message 'Legacy launch recorded no process ID.'
+        }
+        else {
+            throw "Unknown launch mode '$($launch.LaunchMode)'."
+        }
+
         $deadline = [DateTime]::UtcNow.AddMinutes(5)
         while ([DateTime]::UtcNow -lt $deadline -and -not (Test-Path -LiteralPath $launch.ResultPath -PathType Leaf)) {
             Start-Sleep -Seconds 1
@@ -102,15 +133,28 @@ function Test-LiveLaunch {
         Assert-Acceptance -Condition ([string]$result.installerSha256 -match '^[A-F0-9]{64}$') -Message 'Guest did not report the pinned installer hash.'
         Assert-Acceptance -Condition ($result.networking -eq 'Disable') -Message 'Guest contract did not retain disabled networking.'
 
-        $raw = (& (Join-Path $env:SystemRoot 'System32\wsb.exe') list --raw 2>&1 | Out-String)
-        $runningStatuses = [regex]::Matches($raw, '(?i)"(?:status|state)"\s*:\s*"running"')
-        Assert-Acceptance -Condition ($runningStatuses.Count -eq 1) -Message 'Exactly one running Windows Sandbox was not observed.'
-        Assert-Acceptance -Condition ($raw.IndexOf([string]$launch.SandboxId, [StringComparison]::OrdinalIgnoreCase) -ge 0) -Message 'Recorded Sandbox ID is absent from the runtime list.'
+        $state = Get-Content -LiteralPath $launch.StatePath -Raw -Encoding UTF8 | ConvertFrom-Json
+        Assert-Acceptance -Condition ($state.launchMode -eq $launch.LaunchMode) -Message 'Launch mode differs between result and state.'
+        if ($launch.LaunchMode -eq 'managed-cli') {
+            $raw = (& (Join-Path $env:SystemRoot 'System32\wsb.exe') list --raw 2>&1 | Out-String)
+            $runningStatuses = [regex]::Matches($raw, '(?i)"(?:status|state)"\s*:\s*"running"')
+            Assert-Acceptance -Condition ($runningStatuses.Count -eq 1) -Message 'Exactly one running Windows Sandbox was not observed.'
+            Assert-Acceptance -Condition ($raw.IndexOf([string]$launch.SandboxId, [StringComparison]::OrdinalIgnoreCase) -ge 0) -Message 'Recorded Sandbox ID is absent from the runtime list.'
+        }
+        else {
+            $null = Assert-LegacyProcessIdentity -State $state
+        }
     }
     finally {
-        $stopOutput = @(& (Join-Path $env:SystemRoot 'System32\wsb.exe') stop --id $launch.SandboxId --raw 2>&1)
-        if ($LASTEXITCODE -ne 0) {
-            throw "Acceptance cleanup could not stop Sandbox $($launch.SandboxId): $(($stopOutput | Out-String).Trim())"
+        if ($launch.LaunchMode -eq 'managed-cli' -and -not [string]::IsNullOrWhiteSpace([string]$launch.SandboxId)) {
+            $stopOutput = @(& (Join-Path $env:SystemRoot 'System32\wsb.exe') stop --id $launch.SandboxId --raw 2>&1)
+            if ($LASTEXITCODE -ne 0) {
+                throw "Acceptance cleanup could not stop Sandbox $($launch.SandboxId): $(($stopOutput | Out-String).Trim())"
+            }
+        }
+        elseif ($launch.LaunchMode -eq 'legacy-wsb' -and $null -ne $state) {
+            $process = Assert-LegacyProcessIdentity -State $state
+            Stop-Process -Id ([int]$process.ProcessId) -Force -ErrorAction Stop
         }
     }
 }
@@ -121,8 +165,6 @@ if (-not [string]::IsNullOrWhiteSpace($InstallerPath)) {
 
 Test-Preflight
 Test-StrictProfile
-if ($RunLive) {
-    Test-LiveLaunch
-}
+if ($RunLive) { Test-LiveLaunch }
 
 Write-Output "INCREMENT_1_ACCEPTANCE: PASSED (live=$RunLive)"
