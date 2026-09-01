@@ -17,7 +17,9 @@ Success is not merely "a window opened." It requires:
 5. Brave executes only after its signature and pinned hash are rechecked in the guest;
 6. Windows 11 records a managed Sandbox ID; Windows 10 never invents one and instead
    records guarded native process identity;
-7. live acceptance and three-run resource evidence pass before the relevant story is DONE.
+7. every post-start failure and deliberate stop targets that exact identity, waits for
+   confirmed shutdown, and removes only its owned state and staging;
+8. live acceptance and three-run resource evidence pass before the relevant story is DONE.
 
 ## AI decision
 
@@ -47,7 +49,7 @@ That distinction is explicit in state and output through `LifecycleControl`.
 flowchart TD
     A["Signed Brave installer"] --> B["Initialise: signature + hash pin"]
     B --> C["Private host root and policy lock"]
-    C --> D["Preflight + platform selection"]
+    C --> D["Preflight + stale-state reconcile"]
     D -->|Windows 10 build 19045| E["WindowsSandbox.exe + generated .wsb"]
     D -->|Windows 11 build 26100+| F["wsb.exe managed CLI"]
     E --> G["Strict Windows Sandbox"]
@@ -59,7 +61,9 @@ flowchart TD
 |---|---|---|
 | `Initialize-Airlock.ps1` | Validate publisher, hash installer, pin package and guest-script hashes | Never downloads or executes the installer |
 | `Airlock.Platform.ps1` | Resolve Windows 10/11 contract and legacy process discovery | Pure version/edition/launcher decision; no security downgrade |
-| `Start-Airlock.ps1` | Preflight, single-launch mutex, hash recheck, staging, native launch, state record | Starts nothing after any ambiguous prerequisite; never invents an ID |
+| `Airlock.Lifecycle.ps1` | Parse named managed identity, validate state, stop/wait, and remove exact owned artifacts | Never scrapes GUIDs or treats ambiguous identity as safe cleanup |
+| `Start-Airlock.ps1` | Preflight, mutex, stale-state reconcile, hash recheck, staging, native launch, state record | Generates managed identity before launch and cleans every post-start failure |
+| `Stop-Airlock.ps1` | Stop or reconcile the recorded session through the shared lifecycle contract | Stops only a managed ID or fully matched legacy process identity |
 | `New-AirlockProfile.ps1` | Validate strict policy and safe paths; render escaped XML | Rejects weakened values and broad/reparse mappings |
 | `guest/provision.ps1` | Recheck signature/hash, install Brave, launch it, emit bounded result JSON | Reads only bootstrap; writes only result folder |
 | `policy.json` | Reviewable strict template | Package fields stay unusable until signed initialisation |
@@ -98,11 +102,19 @@ sandboxId: <GUID> | null
 processId: <PID> | null
 processCreationDate: <native process identity> | null
 processExecutablePath: <verified WindowsSandbox.exe path> | null
+launcherPath: <native launcher path> | null
 ```
 
 In `legacy-wsb`, `sandboxId` must remain null. Cleanup or emergency termination is allowed
 only after PID, executable path, and creation identity match the recorded state. This
 reduces PID-reuse risk and prevents Airlock from killing an unrelated process.
+
+In `managed-cli`, Airlock generates a canonical GUID before launch and supplies it to
+`wsb start --id`. The provisional `list --raw` parser accepts only exact lowercase `id`
+records under an exact `sandboxes` container. Because Microsoft documents JSON output
+but not the field schema, any other shape fails closed under OQ-14. A named stop is still
+issued before the provisional status query so an unknown schema cannot block the cleanup
+attempt itself.
 
 ## Policy schema
 
@@ -148,11 +160,17 @@ same in both modes.
 
 - Every host failure terminates before native launch where possible.
 - Concurrent launches are refused before staging starts.
-- Windows 11 records the managed Sandbox ID.
+- Windows 11 records the caller-generated managed Sandbox ID.
 - Windows 10 records PID, executable path, and process creation identity and refuses to
   claim a managed ID.
-- State-write failure triggers best-effort guarded cleanup; an identity mismatch fails
-  closed and instructs the user to close Windows Sandbox manually.
+- Every failure after native start enters one cleanup path: stop the exact recorded
+  identity, wait up to the bounded timeout, remove only the matching session directory
+  and state, then rethrow the original actionable failure.
+- If stop cannot be confirmed, Airlock emits a critical cleanup failure, retains the
+  recovery identity/state, and refuses another launch. It never reports reconciliation
+  from an unconfirmed stop.
+- `Stop-Airlock.ps1` and the benchmark use the same mutex and lifecycle path as launch;
+  benchmark iteration stops immediately after any teardown failure.
 - Versioned policy locks and immutable package hashes remain the package rollback model.
 - Code rollback does not require a policy or database migration because the strict `.wsb`
   contract and package lock are unchanged.
@@ -163,8 +181,16 @@ Source-level compatibility is deterministic and runs in CI:
 
 - `tests/Invoke-CompatibilityAcceptance.ps1::Test-PlatformContract`
 - `tests/Invoke-CompatibilityAcceptance.ps1::Test-LegacyProcessIdentity`
+- `tests/Invoke-LifecycleAcceptance.ps1::Test-WsbIdentityParsing`
+- `tests/Invoke-LifecycleAcceptance.ps1::Test-PostStartFailureCleanup`
+- `tests/Invoke-LifecycleAcceptance.ps1::Test-StopAndStateReconciliation`
+- `tests/Invoke-LifecycleAcceptance.ps1::Test-BenchmarkStopWait`
 - `tests/test_increment1_contract.py::Increment1ContractTests.test_version_aware_launch_preserves_managed_cli`
 - `tests/test_project_contract.py::ProjectContractTests.test_approved_change_is_traceable`
+
+The lifecycle source boundary passed GitHub Actions run 33472443734 on PowerShell 7,
+Windows PowerShell 5.1, Linux Python, and Windows Python. This proves the deterministic
+contract only; it is not substituted for native target-host evidence.
 
 Live target-host validation remains mandatory. On Windows 10 build 19045 it must prove:
 
@@ -173,9 +199,15 @@ Live target-host validation remains mandatory. On Windows 10 build 19045 it must
 3. exactly one guarded `WindowsSandbox.exe` identity is recorded;
 4. `sandboxId` is null;
 5. provisioning succeeds;
-6. cleanup terminates only the matching process.
+6. `Stop-Airlock.ps1` returns `stopped` only after the matching process disappears;
+7. matching state/staging are removed and an unrelated directory remains untouched.
 
-Until that target-host evidence exists, `S-06.05.01` is **IN_REVIEW**, not DONE.
+On Windows 11 24H2+ it must additionally prove the installed `wsb.exe --raw` field
+contract and stderr behavior, then show the generated ID is started, stopped, confirmed
+absent, and reconciled without affecting another session.
+
+Until those target-host results exist, `S-06.03.01` and `S-06.05.01` are **IN_REVIEW**,
+not DONE.
 
 ## Known limitations
 
@@ -185,3 +217,5 @@ Until that target-host evidence exists, `S-06.05.01` is **IN_REVIEW**, not DONE.
 - Networking is off, so Brave cannot browse yet.
 - The result share has no native quota; disk-exhaustion testing belongs in live review.
 - OQ-14 still governs exact `wsb.exe --raw` contract evidence on Windows 11.
+- A stop request can be issued from the generated Windows 11 ID without parsing list
+  output, but completion cannot be claimed if the provisional status schema is rejected.

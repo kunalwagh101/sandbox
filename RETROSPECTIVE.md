@@ -99,3 +99,42 @@ product owner's Windows 10 build 19045 machine has Windows Sandbox enabled, is r
 and passes `tests\Invoke-Increment1Acceptance.ps1 -RunLive`. Preserve the generated
 result and host state as review evidence, then add a resolvable DONE ledger only if every
 acceptance criterion and the target-host gate pass.
+
+## R1-L lifecycle review checkpoint — 2026-09-01
+
+### Goal result so far
+
+One shared lifecycle contract now serves launch failure, manual stop, live acceptance,
+and the three-run benchmark. Managed Windows 11 sessions use a caller-generated GUID;
+Windows 10 sessions retain guarded process identity. Stop waits for disappearance before
+state and the exact owned session directory are removed. GitHub Actions run 33472443734
+passed the verifier, Python suite, PowerShell 7 behavior, Windows PowerShell 5.1 parsing,
+and Windows PowerShell 5.1 behavior.
+
+### What changed from the estimate
+
+Strict parsing alone was insufficient. Airlock needs the managed ID before native launch
+so a parser or state-publication failure can still name the guest. Microsoft documents
+`wsb start --id`, so the smallest safe design generates the GUID first and verifies that
+the runtime exposes the same ID. CI also found that wrapping `List<T>` directly in
+`@(...)` fails in both supported PowerShell engines; native `ToArray()` fixed the real
+runtime problem without weakening the test.
+
+### What was cut
+
+Nothing from S-06.03.01 was silently cut. Native Windows 10 shutdown and Windows 11 raw
+field confirmation are not claimed by source CI; they remain explicit OQ-15 and OQ-14
+review gates.
+
+### What the estimate got wrong
+
+The initial estimate treated stop as one native command. Complete teardown is a state
+machine: prove identity, request stop, wait for disappearance, remove only owned staging,
+then remove matching state. Every consumer must use that entire sequence.
+
+### Re-plan
+
+Keep S-06.03.01 IN_REVIEW. On the product owner's Windows 10 build 19045 machine, enable
+Windows Sandbox, reboot, run lifecycle source acceptance, run live acceptance, and run an
+explicit start/stop demo. A Windows 11 24H2 host must separately resolve OQ-14. Do not add
+DONE evidence until both applicable native contracts are measured.

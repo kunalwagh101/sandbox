@@ -5,9 +5,10 @@ to the host user profile, Desktop, Documents, clipboard, microphone, camera, pri
 GPU, or network.
 
 **Delivery status:** Increment 0 is DONE. Increment 1 remains evidence-gated. The
-Windows 10 compatibility repair `S-06.05.01` is implemented in source but cannot be
-called DONE until live acceptance passes on the target Windows 10 Pro 22H2 build 19045
-machine after Windows Sandbox is enabled and the machine is rebooted.
+fail-safe lifecycle repair `S-06.03.01` is IN_REVIEW after its portable source boundary
+passed GitHub Actions run 33472443734 on PowerShell 7 and Windows PowerShell 5.1. The
+Windows 10 compatibility repair `S-06.05.01` is also IN_REVIEW. Neither can be called
+DONE until the target-host runs named in OQ-14 and OQ-15 pass.
 
 ## Supported host modes
 
@@ -42,7 +43,12 @@ Microsoft documents Windows Sandbox and `.wsb` configuration for Windows 10 and 
 - Maps one new, empty result directory writable for non-secret provisioning telemetry.
 - Refuses concurrent launches. Windows 10 refuses an already-running verified
   `WindowsSandbox.exe`; Windows 11 refuses an existing managed Sandbox session.
-- Records host-only session state under `%LOCALAPPDATA%\Airlock\state`.
+- Generates the Windows 11 managed ID before launch, stops that exact ID after any
+  post-start failure, and never discovers identity by scraping arbitrary GUIDs.
+- Records host-only session state under `%LOCALAPPDATA%\Airlock\state`, reconciles an
+  externally closed session, and deletes only that session's owned staging directory.
+- Provides one guarded stop command for both host modes and waits for confirmed shutdown
+  before cleanup or another benchmark launch.
 
 Brave is deliberately **offline** in this increment. Online browsing needs the later
 egress and LAN-isolation story; enabling networking now would silently weaken the
@@ -90,9 +96,17 @@ Open Windows PowerShell in this repository.
 
        powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File scripts\Start-Airlock.ps1
 
+4. Stop the verified session and remove its owned staging:
+
+       powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File scripts\Stop-Airlock.ps1
+
 The command prints the launch mode, host-only state file, and provisioning-result path.
 Windows 11 additionally prints the managed Sandbox ID. Windows 10 prints the guarded
 process ID instead and intentionally leaves `SandboxId` empty.
+
+The stop command returns `Status=stopped` only after the recorded identity is no longer
+active and its exact session directory and state record have been removed. An identity
+mismatch or timeout fails closed and keeps the state needed for recovery.
 
 If Windows marks scripts from a downloaded archive as remote, inspect them first and use
 `Unblock-File` only on reviewed Airlock `.ps1` files. Do not lower the machine's global
@@ -109,6 +123,7 @@ Portable PowerShell boundaries:
 
     powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File tests\Invoke-SourceAcceptance.ps1
     powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File tests\Invoke-CompatibilityAcceptance.ps1
+    powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File tests\Invoke-LifecycleAcceptance.ps1
 
 Live target-host acceptance after initialisation:
 
@@ -116,7 +131,8 @@ Live target-host acceptance after initialisation:
 
 The live acceptance script understands both launch modes. On Windows 10 it verifies that
 no managed Sandbox ID is invented and that PID + executable path + process creation
-identity still point to the launched native Sandbox process before cleanup.
+identity still point to the launched native Sandbox process before guarded shutdown. On
+both modes it requires confirmed stop and removal of the matching state and staging.
 
 Collect a three-launch resource baseline without inventing limits:
 
@@ -128,13 +144,16 @@ script exits non-zero for any failed run or exceeded limit.
 ## Migration and rollback
 
 There is no database or guest-state migration. The host state file keeps schema version 1
-and gains version-aware lifecycle fields: `launchMode`, `lifecycleControl`, and Windows
-10 process identity fields. Existing Windows 11 `sandboxId` behaviour is preserved.
+and gains version-aware lifecycle fields: `launchMode`, `lifecycleControl`, optional
+`launcherPath`, and Windows 10 process identity fields. The Windows 11 `sandboxId` is now
+generated and validated before launch; old schema-1 state remains readable because
+`launcherPath` is not required during state validation.
 
-Rollback is code-only: return to the commit before `S-06.05.01`. Existing package and
-policy locks remain valid because the strict `.wsb` profile format and pinned package
-contract did not change. If a legacy Sandbox is running during rollback, close Windows
-Sandbox first; never kill a PID that has not been identity-checked.
+Rollback is code-only. Before reverting, run `scripts\Stop-Airlock.ps1` and require a
+successful result. Existing package and policy locks remain valid because the strict
+`.wsb` profile and pinned package contract did not change. Do not delete
+`active-session.json` manually while the recorded guest may still be active, and never
+kill a legacy PID that has not been identity-checked.
 
 ## Delivery method
 

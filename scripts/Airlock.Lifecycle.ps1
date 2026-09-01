@@ -443,10 +443,9 @@ function Stop-AirlockSessionIdentity {
         [ValidateRange(1, 300)][int]$TimeoutSeconds = 30
     )
 
-    if (-not (Test-AirlockSessionActive -ValidatedState $ValidatedState -LauncherPath $LauncherPath)) {
-        return
-    }
     if ($ValidatedState.LaunchMode -eq 'managed-cli') {
+        # The ID is generated and validated before launch. Issue the named stop first so
+        # an unexpected list JSON shape can never prevent the cleanup attempt itself.
         try {
             $null = Invoke-AirlockWsbRaw -WsbPath $LauncherPath -Arguments @(
                 'stop', '--id', [string]$ValidatedState.SandboxId, '--raw'
@@ -459,6 +458,9 @@ function Stop-AirlockSessionIdentity {
         }
     }
     else {
+        if (-not (Test-AirlockSessionActive -ValidatedState $ValidatedState -LauncherPath $LauncherPath)) {
+            return
+        }
         try {
             Stop-Process -Id ([int]$ValidatedState.ProcessId) -Force -ErrorAction Stop
         }

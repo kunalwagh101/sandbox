@@ -124,6 +124,16 @@ function Test-WsbIdentityParsing {
     Assert-ThrowsLifecycle -ExpectedText "exact 'id' field" -Action {
         Get-AirlockWsbIds -RawJson $wrongCase | Out-Null
     }
+
+    $source = Get-Content -LiteralPath $lifecycleScript -Raw -Encoding UTF8
+    $stopFunctionStart = $source.IndexOf('function Stop-AirlockSessionIdentity', [StringComparison]::Ordinal)
+    $clearFunctionStart = $source.IndexOf('function Clear-AirlockSessionArtifacts', $stopFunctionStart, [StringComparison]::Ordinal)
+    Assert-Lifecycle -Condition ($stopFunctionStart -ge 0 -and $clearFunctionStart -gt $stopFunctionStart) -Message 'Managed stop function boundary is missing.'
+    $stopFunction = $source.Substring($stopFunctionStart, $clearFunctionStart - $stopFunctionStart)
+    $namedStop = $stopFunction.IndexOf("'stop', '--id'", [StringComparison]::Ordinal)
+    $statusProbe = $stopFunction.IndexOf('Test-AirlockSessionActive', [StringComparison]::Ordinal)
+    Assert-Lifecycle -Condition ($namedStop -ge 0) -Message 'Managed cleanup does not issue a named stop.'
+    Assert-Lifecycle -Condition ($statusProbe -gt $namedStop) -Message 'Provisional raw-status parsing can prevent the managed stop attempt.'
 }
 
 function Test-PostStartFailureCleanup {

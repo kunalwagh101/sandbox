@@ -1,5 +1,16 @@
 # Airlock Demo
 
+## Repair R1-L — fail-safe lifecycle boundary
+
+Run the deterministic lifecycle boundary before starting a real Sandbox:
+
+    powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File tests\Invoke-LifecycleAcceptance.ps1
+
+Expected: `LIFECYCLE_ACCEPTANCE: PASSED (4 tests)`. It proves named-field ID parsing,
+post-start cleanup, stale-state reconciliation, exact owned-directory removal, and a
+bounded stop wait between benchmark launches. It does not replace the OQ-14/OQ-15 live
+host evidence.
+
 ## Repair R2 — cross-version compatibility
 
 Run the deterministic compatibility boundary first:
@@ -66,7 +77,16 @@ a process ID, and an empty `SandboxId`.
 On Windows 11 24H2+, output must show `LaunchMode=managed-cli`,
 `LifecycleControl=managed-id`, and a managed Sandbox ID.
 
-### 4. Run negative controls and live acceptance
+### 4. Stop the exact launched session
+
+    powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File scripts\Stop-Airlock.ps1
+
+Expected: `Status=stopped`, `Stopped=True`, and `Reconciled=True`. The recorded guest is
+confirmed absent before Airlock removes only its matching
+`%LOCALAPPDATA%\Airlock\sessions\<session-key>` directory and
+`state\active-session.json`. Running the command again reports `no-active-session`.
+
+### 5. Run negative controls and live acceptance
 
     powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File tests\Invoke-Increment1Acceptance.ps1 -RunLive
 
@@ -75,9 +95,10 @@ Expected: `INCREMENT_1_ACCEPTANCE: PASSED (live=True)`.
 The script proves weakened audio policy and a broad user-profile mapping are refused,
 then launches the real Sandbox. Windows 10 verifies PID + executable path + process
 creation identity before cleanup. Windows 11 verifies the managed Sandbox ID before
-cleanup.
+cleanup. Both modes require the shared stop command to confirm shutdown and reconcile
+the matching state.
 
-### 5. Collect the resource baseline
+### 6. Collect the resource baseline
 
     powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File tests\Measure-Increment1.ps1 -CollectOnly
 
@@ -93,5 +114,5 @@ measurements before enforced thresholds are used.
     python scripts/verify_board.py
 
 Expected: the seeded lie is rejected, all repository tests pass, and the verifier prints
-`VERIFICATION: PASSED` without claiming the compatibility story DONE before live Windows
-10 evidence exists.
+`VERIFICATION: PASSED` without claiming either lifecycle or compatibility DONE before
+the required live Windows 10 and Windows 11 evidence exists.

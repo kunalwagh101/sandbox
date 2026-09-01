@@ -174,7 +174,15 @@ question can change its shape.
   `wsb.exe` file version, and Windows PowerShell 5.1 stderr behaviour.
 - Blast radius: High. A wrong ID can orphan a live sandbox or stop the wrong session.
 - Blocks: Target-host DONE evidence for S-06.03.01 and S-01.01.01.
-- Answer: Source repair approved on 2026-08-29; target-host contract evidence pending.
+- Source result: Microsoft documents JSON output and managed IDs but does not publish the
+  JSON field schema. Airlock provisionally accepts only exact lowercase `id` records under
+  an exact `sandboxes` container, rejects every other shape, captures stdout/stderr
+  separately, and fingerprints diagnostics instead of printing host paths. Windows 11 now
+  requests a caller-generated ID with `wsb start --id`; failure cleanup issues the named
+  stop before parsing `list --raw`. These source behaviors passed GitHub Actions run
+  33472443734 on PowerShell 7 and Windows PowerShell 5.1.
+- Answer: Target-host contract evidence remains pending. Source CI does not establish the
+  field names or native stderr behavior of an installed Windows 11 24H2 `wsb.exe`.
 
 ## OQ-15 — Windows 10 legacy process identity
 
@@ -187,7 +195,8 @@ question can change its shape.
   executable path; refuse an existing instance; label lifecycle control `legacy-process`;
   never populate `sandboxId` in this mode.
 - Evidence needed: Run compatibility acceptance after enabling Sandbox on build 19045,
-  observe one process identity, successful provisioning, and clean manual/guarded close.
+  observe one process identity, successful provisioning, `Stop-Airlock.ps1` returning
+  `stopped`, and removal of the matching state/staging without touching another path.
 - Blast radius: Medium. The hypervisor and strict mappings are unchanged, but automated
   session reconciliation is weaker than the Windows 11 managed CLI.
 - Blocks: DONE for S-06.05.01, not implementation; the command shape is fixed by the
