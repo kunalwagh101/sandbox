@@ -148,7 +148,7 @@ function ConvertFrom-AirlockWsbRaw {
                 Status = $status
             })
     }
-    return @($result)
+    return $result.ToArray()
 }
 
 function Get-AirlockWsbIds {
@@ -168,7 +168,7 @@ function Get-AirlockWsbIds {
             $ids.Add([string]$record.Id)
         }
     }
-    return @($ids)
+    return $ids.ToArray()
 }
 
 function Get-AirlockSessionIdAfterStart {
