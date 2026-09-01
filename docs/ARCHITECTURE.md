@@ -188,7 +188,7 @@ Source-level compatibility is deterministic and runs in CI:
 - `tests/test_increment1_contract.py::Increment1ContractTests.test_version_aware_launch_preserves_managed_cli`
 - `tests/test_project_contract.py::ProjectContractTests.test_approved_change_is_traceable`
 
-The lifecycle source boundary passed GitHub Actions run 33472443734 on PowerShell 7,
+The lifecycle source boundary passed GitHub Actions run 33473134496 on PowerShell 7,
 Windows PowerShell 5.1, Linux Python, and Windows Python. This proves the deterministic
 contract only; it is not substituted for native target-host evidence.
 

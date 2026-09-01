@@ -6,7 +6,7 @@ GPU, or network.
 
 **Delivery status:** Increment 0 is DONE. Increment 1 remains evidence-gated. The
 fail-safe lifecycle repair `S-06.03.01` is IN_REVIEW after its portable source boundary
-passed GitHub Actions run 33472443734 on PowerShell 7 and Windows PowerShell 5.1. The
+passed GitHub Actions run 33473134496 on PowerShell 7 and Windows PowerShell 5.1. The
 Windows 10 compatibility repair `S-06.05.01` is also IN_REVIEW. Neither can be called
 DONE until the target-host runs named in OQ-14 and OQ-15 pass.
 

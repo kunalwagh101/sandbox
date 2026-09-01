@@ -25,7 +25,7 @@ BACKLOG_APPROVED: true
   live lifecycle acceptance runs.
 - Review checkpoint: strict identity, stop-first failure cleanup, stale-state
   reconciliation, owned staging removal, and benchmark stop-wait passed PowerShell 7,
-  Windows PowerShell 5.1, Python, and the verifier in GitHub Actions run 33472443734 on
+  Windows PowerShell 5.1, Python, and the verifier in GitHub Actions run 33473134496 on
   2026-09-01. S-06.03.01 remains evidence-gated by OQ-14/OQ-15.
 
 ## Story board
@@ -55,7 +55,7 @@ BACKLOG_APPROVED: true
 | S-05.03.02 | BACKLOG | 5 | S-05.02.02; S-05.03.01 |
 | S-06.01.01 | DONE | R1 | Evidence below; exact-root Git verification repaired |
 | S-06.02.01 | DONE | R1 | Evidence below; PowerShell boundary revalidated after verifier repair |
-| S-06.03.01 | IN_REVIEW | R1 | source-ci=33472443734; repair-for=S-01.01.01,S-01.02.03; AL-04,05,06,07,08,23; OQ-14/OQ-15 target evidence blocks DONE |
+| S-06.03.01 | IN_REVIEW | R1 | source-ci=33473134496; repair-for=S-01.01.01,S-01.02.03; AL-04,05,06,07,08,23; OQ-14/OQ-15 target evidence blocks DONE |
 | S-06.04.01 | BACKLOG | R1 | S-06.03.01; AL-12,16,17 |
 | S-06.05.01 | IN_REVIEW | R2 | source-ci=33367645830; repair-for=S-01.01.01; approved=CR-2026-08-30-01; OQ-15 target-host evidence blocks DONE |
 <!-- BOARD_END -->

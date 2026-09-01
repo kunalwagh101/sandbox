@@ -180,7 +180,7 @@ question can change its shape.
   separately, and fingerprints diagnostics instead of printing host paths. Windows 11 now
   requests a caller-generated ID with `wsb start --id`; failure cleanup issues the named
   stop before parsing `list --raw`. These source behaviors passed GitHub Actions run
-  33472443734 on PowerShell 7 and Windows PowerShell 5.1.
+  33473134496 on PowerShell 7 and Windows PowerShell 5.1.
 - Answer: Target-host contract evidence remains pending. Source CI does not establish the
   field names or native stderr behavior of an installed Windows 11 24H2 `wsb.exe`.
 

@@ -107,7 +107,7 @@ acceptance criterion and the target-host gate pass.
 One shared lifecycle contract now serves launch failure, manual stop, live acceptance,
 and the three-run benchmark. Managed Windows 11 sessions use a caller-generated GUID;
 Windows 10 sessions retain guarded process identity. Stop waits for disappearance before
-state and the exact owned session directory are removed. GitHub Actions run 33472443734
+state and the exact owned session directory are removed. GitHub Actions run 33473134496
 passed the verifier, Python suite, PowerShell 7 behavior, Windows PowerShell 5.1 parsing,
 and Windows PowerShell 5.1 behavior.
 

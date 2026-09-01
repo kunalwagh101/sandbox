@@ -17,7 +17,7 @@
 - Added approved change CR-2026-08-30-01 and story S-06.05.01 for Windows 10 Pro 22H2
   build 19045 compatibility while preserving Windows 11 24H2+ support.
 - Pulled only S-06.03.01 into the WIP-limited R1-L lifecycle slice and moved it to
-  IN_REVIEW after the portable source boundary passed GitHub Actions run 33472443734.
+  IN_REVIEW after the portable source boundary passed GitHub Actions run 33473134496.
 
 ### Fixed
 
@@ -84,7 +84,7 @@
 - `scripts/Stop-Airlock.ps1`, with mutex protection, `-WhatIf`, bounded timeout, and
   optional JSON output for both managed-ID and guarded legacy-process modes.
 - `tests/Invoke-LifecycleAcceptance.ps1`, wired into CI and pre-push, with four named
-  lifecycle acceptance tests. GitHub Actions run 33472443734 passed on PowerShell 7,
+  lifecycle acceptance tests. GitHub Actions run 33473134496 passed on PowerShell 7,
   Windows PowerShell 5.1, Linux Python, and Windows Python.
 
 ### Security
