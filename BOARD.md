@@ -54,7 +54,7 @@ BACKLOG_APPROVED: true
 | S-05.03.02 | BACKLOG | 5 | S-05.02.02; S-05.03.01 |
 | S-06.01.01 | DONE | R1 | Evidence below; exact-root Git verification repaired |
 | S-06.02.01 | DONE | R1 | Evidence below; PowerShell boundary revalidated after verifier repair |
-| S-06.03.01 | IN_PROGRESS | R1-L | S-06.02.01; AL-04,05,06,07,08,23; OQ-14/OQ-15 target evidence blocks DONE |
+| S-06.03.01 | IN_PROGRESS | R1 | repair-for=S-01.01.01,S-01.02.03; S-06.02.01; AL-04,05,06,07,08,23; OQ-14/OQ-15 target evidence blocks DONE |
 | S-06.04.01 | BACKLOG | R1 | S-06.03.01; AL-12,16,17 |
 | S-06.05.01 | IN_REVIEW | R2 | source-ci=33367645830; repair-for=S-01.01.01; approved=CR-2026-08-30-01; OQ-15 target-host evidence blocks DONE |
 <!-- BOARD_END -->

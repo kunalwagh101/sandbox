@@ -6,6 +6,7 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $platformScript = Join-Path $repoRoot 'scripts\Airlock.Platform.ps1'
 $startScript = Join-Path $repoRoot 'scripts\Start-Airlock.ps1'
+$lifecycleScript = Join-Path $repoRoot 'scripts\Airlock.Lifecycle.ps1'
 . $platformScript
 
 function Assert-Compatibility {
@@ -79,6 +80,7 @@ function Test-PlatformContract {
 
 function Test-LegacyProcessIdentity {
     $source = Get-Content -LiteralPath $startScript -Raw -Encoding UTF8
+    $lifecycle = Get-Content -LiteralPath $lifecycleScript -Raw -Encoding UTF8
     Assert-Compatibility -Condition ($source.Contains("Start-Process -FilePath `$preflight.LauncherPath")) -Message 'Legacy launch does not use the selected native launcher.'
     Assert-Compatibility -Condition ($source.Contains("`$profileArgument =")) -Message 'Legacy .wsb path is not prepared as a quoted launch argument.'
     Assert-Compatibility -Condition ($source.Contains("-ArgumentList @(`$profileArgument)")) -Message 'Legacy launch does not pass the quoted generated .wsb profile.'
@@ -86,10 +88,11 @@ function Test-LegacyProcessIdentity {
     Assert-Compatibility -Condition ($source.Contains('processCreationDate')) -Message 'Legacy process creation identity is not persisted.'
     Assert-Compatibility -Condition ($source.Contains('processExecutablePath')) -Message 'Legacy executable identity is not persisted.'
     Assert-Compatibility -Condition ($source.Contains("lifecycleControl = [string]`$preflight.LifecycleControl")) -Message 'Legacy lifecycle mode is not persisted.'
-    Assert-Compatibility -Condition ($source.Contains('Refusing to stop PID')) -Message 'Legacy stop is not identity-guarded.'
+    Assert-Compatibility -Condition ($lifecycle.Contains('because its process identity no longer matches Airlock state')) -Message 'Legacy stop is not identity-guarded.'
     Assert-Compatibility -Condition ($source.Contains("sandboxId = `$sessionId")) -Message 'Shared state schema lost sandboxId field.'
-    Assert-Compatibility -Condition ($source.Contains("`$sessionId = `$null")) -Message 'Legacy mode may invent a Sandbox ID.'
-    Assert-Compatibility -Condition ($source.Contains('Airlock stopped the unrecorded legacy Sandbox because session state could not be saved')) -Message 'Legacy state-write cleanup success is not reported distinctly.'
+    Assert-Compatibility -Condition ($source.Contains("`$sessionId = `$(if (`$preflight.PlatformMode -eq 'managed-cli')")) -Message 'Sandbox ID is not conditional on managed mode.'
+    Assert-Compatibility -Condition ($source.Contains('Invoke-AirlockFailedLaunchCleanup')) -Message 'Legacy post-start failures do not use shared cleanup.'
+    Assert-Compatibility -Condition ($lifecycle.Contains('Wait-AirlockSessionStopped')) -Message 'Legacy stop does not wait for confirmed process exit.'
 }
 
 Test-PlatformContract

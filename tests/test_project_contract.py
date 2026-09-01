@@ -40,6 +40,7 @@ class ProjectContractTests(unittest.TestCase):
         self.assertNotIn("--no-", hook)
         self.assertIn("Invoke-SourceAcceptance.ps1", hook)
         self.assertIn("Invoke-CompatibilityAcceptance.ps1", hook)
+        self.assertIn("Invoke-LifecycleAcceptance.ps1", hook)
 
         workflow = (
             ROOT / ".github" / "workflows" / "verify-board.yml"
@@ -51,6 +52,7 @@ class ProjectContractTests(unittest.TestCase):
         self.assertIn("Language.Parser]::ParseFile", workflow)
         self.assertGreaterEqual(workflow.count("Invoke-SourceAcceptance.ps1"), 2)
         self.assertGreaterEqual(workflow.count("Invoke-CompatibilityAcceptance.ps1"), 2)
+        self.assertGreaterEqual(workflow.count("Invoke-LifecycleAcceptance.ps1"), 2)
 
 
 if __name__ == "__main__":

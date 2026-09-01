@@ -51,6 +51,9 @@ class Increment1ContractTests(unittest.TestCase):
         cls.start = (ROOT / "scripts" / "Start-Airlock.ps1").read_text(
             encoding="utf-8"
         )
+        cls.lifecycle = (ROOT / "scripts" / "Airlock.Lifecycle.ps1").read_text(
+            encoding="utf-8"
+        )
         cls.provision = (ROOT / "guest" / "provision.ps1").read_text(
             encoding="utf-8"
         )
@@ -112,20 +115,20 @@ class Increment1ContractTests(unittest.TestCase):
         self.assertIn("Airlock preflight failed", self.start)
         self.assertLess(
             self.start.index("$preflight = Invoke-AirlockPreflight"),
-            self.start.index("'start', '--config'"),
+            self.start.index("'start', '--id'"),
         )
 
     def test_launch_is_single_session_hash_checked_and_atomic(self):
         self.assertIn("Local\\Airlock-Launch", self.start)
         self.assertIn("another Windows Sandbox is active", self.start)
         self.assertIn("WindowsSandbox.exe is already active", self.start)
-        self.assertIn("Get-AirlockSessionIdAfterStart", self.start)
-        self.assertIn("Get-NewLegacySandboxProcess", self.start)
-        self.assertIn("active-session.json", self.start)
+        self.assertIn("Get-AirlockSessionIdAfterStart", self.start + self.lifecycle)
+        self.assertIn("Get-NewLegacySandboxProcess", self.start + self.lifecycle)
+        self.assertIn("active-session.json", self.start + self.lifecycle)
         self.assertIn("Write-AirlockJsonAtomic", self.start)
         self.assertIn("[IO.File]::Replace($temporary, $destination, $backup)", self.common)
         self.assertNotIn("[IO.File]::Replace($temporary, $destination, $null)", self.common)
-        self.assertIn("'start', '--config', $profileXml, '--raw'", self.start)
+        self.assertIn("'start', '--id', $sessionId, '--config', $profileXml, '--raw'", self.start)
         self.assertGreaterEqual(self.start.count("Get-FileHash"), 5)
         self.assertIn("provisioning script changed after initialisation", self.start)
         self.assertIn("bootstrapMapping = 'read-only'", self.start)
@@ -136,12 +139,20 @@ class Increment1ContractTests(unittest.TestCase):
         self.assertIn("LifecycleControl = 'managed-id'", self.platform)
         self.assertIn("LifecycleControl = 'legacy-process'", self.platform)
         self.assertIn("if ($preflight.PlatformMode -eq 'managed-cli')", self.start)
-        self.assertIn("Invoke-WsbRaw -WsbPath $preflight.LauncherPath", self.start)
-        self.assertIn("'start', '--config', $profileXml, '--raw'", self.start)
+        self.assertIn("Invoke-AirlockWsbRaw -WsbPath $preflight.LauncherPath", self.start)
+        self.assertIn("'start', '--id', $sessionId, '--config', $profileXml, '--raw'", self.start)
         self.assertIn("Start-Process -FilePath $preflight.LauncherPath", self.start)
         self.assertIn("processCreationDate", self.start)
         self.assertIn("processExecutablePath", self.start)
-        self.assertIn("$sessionId = $null", self.start)
+        self.assertIn("$sessionId = $(if ($preflight.PlatformMode -eq 'managed-cli')", self.start)
+        self.assertIn("sandboxId = $sessionId", self.start)
+
+    def test_lifecycle_identity_is_named_and_fail_closed(self):
+        self.assertIn("$script:AirlockWsbIdField = 'id'", self.lifecycle)
+        self.assertIn("TryParseExact", self.lifecycle)
+        self.assertIn("Invoke-AirlockFailedLaunchCleanup", self.start)
+        self.assertIn("Repair-AirlockStaleSessionState", self.start)
+        self.assertNotIn("[regex]::Matches", self.lifecycle)
 
     def test_initializer_pins_signed_installer_and_provisioner(self):
         self.assertIn("Get-AuthenticodeSignature", self.initialize)

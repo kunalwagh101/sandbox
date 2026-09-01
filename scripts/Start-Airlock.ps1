@@ -9,6 +9,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'Airlock.Common.ps1')
 . (Join-Path $PSScriptRoot 'Airlock.Platform.ps1')
+. (Join-Path $PSScriptRoot 'Airlock.Lifecycle.ps1')
 
 function Invoke-AirlockPreflight {
     if ($env:OS -ne 'Windows_NT') {
@@ -135,152 +136,6 @@ function Invoke-AirlockPreflight {
     }
 }
 
-function Invoke-WsbRaw {
-    param(
-        [Parameter(Mandatory = $true)][string]$WsbPath,
-        [Parameter(Mandatory = $true)][string[]]$Arguments
-    )
-
-    $output = @(& $WsbPath @Arguments 2>&1)
-    $exitCode = $LASTEXITCODE
-    $text = ($output | Out-String).Trim()
-    if ($exitCode -ne 0) {
-        throw "wsb.exe $($Arguments[0]) failed with exit code $exitCode. $text"
-    }
-    if (-not [string]::IsNullOrWhiteSpace($text)) {
-        try {
-            $null = $text | ConvertFrom-Json
-        }
-        catch {
-            throw "wsb.exe $($Arguments[0]) did not return valid --raw JSON: $text"
-        }
-    }
-    return $text
-}
-
-function Get-WsbIds {
-    param(
-        [AllowEmptyString()][string]$RawJson,
-        [switch]$ActiveOnly
-    )
-
-    if ([string]::IsNullOrWhiteSpace($RawJson)) {
-        return @()
-    }
-    $guidPattern = '(?i)\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b'
-    $parsed = $RawJson | ConvertFrom-Json
-    if ($null -eq $parsed) {
-        return @()
-    }
-    $containerProperty = $parsed.PSObject.Properties | Where-Object {
-        $_.Name -in @('sandboxes', 'Sandboxes', 'sessions', 'Sessions', 'value', 'Value')
-    } | Select-Object -First 1
-    if ($null -ne $containerProperty) {
-        $candidates = @($containerProperty.Value)
-    }
-    elseif ($parsed -is [Collections.IEnumerable] -and $parsed -isnot [string]) {
-        $candidates = @($parsed)
-    }
-    else {
-        $candidates = @($parsed)
-    }
-
-    $ids = New-Object Collections.Generic.List[string]
-    foreach ($candidate in $candidates) {
-        $candidateJson = $candidate | ConvertTo-Json -Depth 8 -Compress
-        $candidateIds = @([regex]::Matches($candidateJson, $guidPattern) | ForEach-Object {
-                $_.Value.ToLowerInvariant()
-            } | Select-Object -Unique)
-        if ($candidateIds.Count -eq 0) {
-            continue
-        }
-        $statusProperty = $candidate.PSObject.Properties | Where-Object {
-            $_.Name -in @('status', 'Status', 'state', 'State')
-        } | Select-Object -First 1
-        $status = if ($null -eq $statusProperty) { 'unknown' } else { [string]$statusProperty.Value }
-        if ($ActiveOnly -and $status -match '^(?i:stopped|closed|terminated)$') {
-            continue
-        }
-        foreach ($id in $candidateIds) {
-            if (-not $ids.Contains($id)) {
-                $ids.Add($id)
-            }
-        }
-    }
-
-    if ($ids.Count -eq 0 -and -not $ActiveOnly) {
-        return @([regex]::Matches($RawJson, $guidPattern) | ForEach-Object {
-                $_.Value.ToLowerInvariant()
-            } | Select-Object -Unique)
-    }
-    return @($ids)
-}
-
-function Get-AirlockSessionIdAfterStart {
-    param(
-        [Parameter(Mandatory = $true)][string]$WsbPath,
-        [AllowEmptyString()][string]$StartJson
-    )
-
-    $ids = @(Get-WsbIds -RawJson $StartJson)
-    if ($ids.Count -eq 1) {
-        return $ids[0]
-    }
-    if ($ids.Count -gt 1) {
-        throw 'wsb.exe start returned more than one sandbox identifier.'
-    }
-
-    for ($attempt = 0; $attempt -lt 20; $attempt++) {
-        Start-Sleep -Milliseconds 250
-        $listJson = Invoke-WsbRaw -WsbPath $WsbPath -Arguments @('list', '--raw')
-        $ids = @(Get-WsbIds -RawJson $listJson -ActiveOnly)
-        if ($ids.Count -eq 1) {
-            return $ids[0]
-        }
-        if ($ids.Count -gt 1) {
-            throw 'More than one Windows Sandbox appeared after Airlock launch.'
-        }
-    }
-    throw 'Windows Sandbox started without a resolvable session identifier. Run wsb list --raw before retrying.'
-}
-
-function Get-NewLegacySandboxProcess {
-    param(
-        [Parameter(Mandatory = $true)][string]$LauncherPath,
-        [Parameter(Mandatory = $true)][int[]]$BeforeProcessIds
-    )
-
-    for ($attempt = 0; $attempt -lt 40; $attempt++) {
-        $candidate = @(Get-AirlockLegacySandboxProcesses -LauncherPath $LauncherPath | Where-Object {
-                [int]$_.ProcessId -notin $BeforeProcessIds
-            }) | Select-Object -First 1
-        if ($null -ne $candidate) {
-            return $candidate
-        }
-        Start-Sleep -Milliseconds 250
-    }
-    throw 'Windows Sandbox launcher returned without a new verifiable WindowsSandbox.exe process.'
-}
-
-function Stop-AirlockLegacyProcessGuarded {
-    param(
-        [Parameter(Mandatory = $true)][int]$ProcessId,
-        [Parameter(Mandatory = $true)][string]$LauncherPath,
-        [Parameter(Mandatory = $true)][string]$CreationDate
-    )
-
-    $process = Get-CimInstance -ClassName Win32_Process -Filter "ProcessId=$ProcessId" -ErrorAction SilentlyContinue
-    if ($null -eq $process) {
-        return
-    }
-    if ([string]::IsNullOrWhiteSpace([string]$process.ExecutablePath) -or
-        -not [IO.Path]::GetFullPath([string]$process.ExecutablePath).Equals([IO.Path]::GetFullPath($LauncherPath), [StringComparison]::OrdinalIgnoreCase) -or
-        [string]$process.CreationDate -cne $CreationDate) {
-        throw "Refusing to stop PID $ProcessId because its legacy Sandbox identity no longer matches recorded state."
-    }
-    Stop-Process -Id $ProcessId -Force -ErrorAction Stop
-}
-
 $preflight = Invoke-AirlockPreflight
 if ($PreflightOnly) {
     if ($AsJson) { $preflight | ConvertTo-Json -Depth 5 } else { $preflight }
@@ -364,16 +219,26 @@ if ($actualProvisionHash -cne $provisionHash) {
 
 $mutex = [Threading.Mutex]::new($false, 'Local\Airlock-Launch')
 $ownsMutex = $false
+$sessionRoot = $null
+$statePath = Get-AirlockStatePath -AirlockRoot $airlockRoot
+$state = $null
+$validatedState = $null
+$launchAttempted = $false
+$legacyBeforeIds = @()
 try {
     $ownsMutex = $mutex.WaitOne(0)
     if (-not $ownsMutex) {
         throw 'Another Airlock launch is already in progress. Wait for it to finish before retrying.'
     }
 
-    $legacyBeforeIds = @()
+    $recordedSession = Repair-AirlockStaleSessionState -AirlockRoot $airlockRoot
+    if ($null -ne $recordedSession) {
+        throw "Airlock session $($recordedSession.SessionKey) is already active. Run scripts\Stop-Airlock.ps1 and wait for confirmed teardown before retrying."
+    }
+
     if ($preflight.PlatformMode -eq 'managed-cli') {
-        $existingJson = Invoke-WsbRaw -WsbPath $preflight.LauncherPath -Arguments @('list', '--raw')
-        $existingIds = @(Get-WsbIds -RawJson $existingJson -ActiveOnly)
+        $existingJson = Invoke-AirlockWsbRaw -WsbPath $preflight.LauncherPath -Arguments @('list', '--raw')
+        $existingIds = @(Get-AirlockWsbIds -RawJson $existingJson -ActiveOnly)
         if ($existingIds.Count -gt 0) {
             throw "Airlock refuses to start while another Windows Sandbox is active: $($existingIds -join ', '). Stop it explicitly, then retry."
         }
@@ -424,28 +289,23 @@ try {
     }
 
     $launchStartedAt = [DateTime]::UtcNow
-    $sessionId = $null
+    $sessionId = $(if ($preflight.PlatformMode -eq 'managed-cli') {
+            [Guid]::NewGuid().ToString('D').ToLowerInvariant()
+        }
+        else {
+            $null
+        })
     $legacyProcess = $null
-    if ($preflight.PlatformMode -eq 'managed-cli') {
-        $startJson = Invoke-WsbRaw -WsbPath $preflight.LauncherPath -Arguments @('start', '--config', $profileXml, '--raw')
-        $sessionId = Get-AirlockSessionIdAfterStart -WsbPath $preflight.LauncherPath -StartJson $startJson
-    }
-    else {
-        $profileArgument = '"' + $profilePath + '"'
-        Start-Process -FilePath $preflight.LauncherPath -ArgumentList @($profileArgument) -PassThru | Out-Null
-        $legacyProcess = Get-NewLegacySandboxProcess -LauncherPath $preflight.LauncherPath -BeforeProcessIds $legacyBeforeIds
-    }
-
-    $statePath = Join-Path (Join-Path $airlockRoot 'state') 'active-session.json'
     $state = [ordered]@{
         schemaVersion = 1
         sessionKey = $sessionKey
         launchMode = [string]$preflight.PlatformMode
         lifecycleControl = [string]$preflight.LifecycleControl
+        launcherPath = [string]$preflight.LauncherPath
         sandboxId = $sessionId
-        processId = $(if ($null -ne $legacyProcess) { [int]$legacyProcess.ProcessId } else { $null })
-        processCreationDate = $(if ($null -ne $legacyProcess) { [string]$legacyProcess.CreationDate } else { $null })
-        processExecutablePath = $(if ($null -ne $legacyProcess) { [string]$legacyProcess.ExecutablePath } else { $null })
+        processId = $null
+        processCreationDate = $null
+        processExecutablePath = $null
         launchedAtUtc = $launchStartedAt.ToString('o')
         configPath = $profilePath
         resultPath = Join-Path $resultPath $resultName
@@ -463,26 +323,29 @@ try {
             resultMapping = 'dedicated writable folder; empty at launch'
         }
     }
-    try {
-        Write-AirlockJsonAtomic -Path $statePath -Value $state
+    if ($preflight.PlatformMode -eq 'managed-cli') {
+        $validatedState = Assert-AirlockSessionState -State ([PSCustomObject]$state) -AirlockRoot $airlockRoot
+        $launchAttempted = $true
+        $startJson = Invoke-AirlockWsbRaw -WsbPath $preflight.LauncherPath -Arguments @(
+            'start', '--id', $sessionId, '--config', $profileXml, '--raw'
+        )
+        $sessionId = Get-AirlockSessionIdAfterStart `
+            -WsbPath $preflight.LauncherPath `
+            -ExpectedId $sessionId `
+            -StartJson $startJson
     }
-    catch {
-        $stateError = $_.Exception.Message
-        if ($preflight.PlatformMode -eq 'managed-cli') {
-            $stopOutput = @(& $preflight.LauncherPath stop --id $sessionId --raw 2>&1)
-            if ($LASTEXITCODE -eq 0) {
-                throw "Airlock stopped the unrecorded Sandbox because session state could not be saved: $stateError"
-            }
-            throw "CRITICAL: Airlock could not record or stop Sandbox $sessionId. Run 'wsb stop --id $sessionId' now. State error: $stateError. Stop output: $(($stopOutput | Out-String).Trim())"
-        }
-        try {
-            Stop-AirlockLegacyProcessGuarded -ProcessId ([int]$legacyProcess.ProcessId) -LauncherPath $preflight.LauncherPath -CreationDate ([string]$legacyProcess.CreationDate)
-        }
-        catch {
-            throw "CRITICAL: Airlock could not safely record or stop legacy Sandbox PID $($legacyProcess.ProcessId). Close Windows Sandbox manually. State error: $stateError. Stop detail: $($_.Exception.Message)"
-        }
-        throw "Airlock stopped the unrecorded legacy Sandbox because session state could not be saved: $stateError"
+    else {
+        $profileArgument = '"' + $profilePath + '"'
+        $launchAttempted = $true
+        Start-Process -FilePath $preflight.LauncherPath -ArgumentList @($profileArgument) -PassThru | Out-Null
+        $legacyProcess = Get-NewLegacySandboxProcess -LauncherPath $preflight.LauncherPath -BeforeProcessIds $legacyBeforeIds
+        $state.processId = [int]$legacyProcess.ProcessId
+        $state.processCreationDate = [string]$legacyProcess.CreationDate
+        $state.processExecutablePath = [string]$legacyProcess.ExecutablePath
+        $validatedState = Assert-AirlockSessionState -State ([PSCustomObject]$state) -AirlockRoot $airlockRoot
     }
+
+    Write-AirlockJsonAtomic -Path $statePath -Value $state
 
     $result = [PSCustomObject]@{
         Status = 'started'
@@ -497,6 +360,65 @@ try {
         Message = 'Brave is provisioning inside a strict offline Windows Sandbox.'
     }
     if ($AsJson) { $result | ConvertTo-Json -Depth 5 } else { $result }
+}
+catch {
+    $launchError = $_.Exception.Message
+    $cleanupErrors = New-Object Collections.Generic.List[string]
+    $cleanupPerformed = $false
+
+    if ($launchAttempted) {
+        if ($preflight.PlatformMode -eq 'legacy-wsb' -and $null -eq $validatedState) {
+            try {
+                $legacyProcess = Get-NewLegacySandboxProcess `
+                    -LauncherPath $preflight.LauncherPath `
+                    -BeforeProcessIds $legacyBeforeIds
+                $state.processId = [int]$legacyProcess.ProcessId
+                $state.processCreationDate = [string]$legacyProcess.CreationDate
+                $state.processExecutablePath = [string]$legacyProcess.ExecutablePath
+                $validatedState = Assert-AirlockSessionState `
+                    -State ([PSCustomObject]$state) `
+                    -AirlockRoot $airlockRoot
+            }
+            catch {
+                $cleanupErrors.Add("Legacy session identity could not be recovered: $($_.Exception.Message)")
+            }
+        }
+
+        if ($null -ne $validatedState) {
+            try {
+                Invoke-AirlockFailedLaunchCleanup `
+                    -ValidatedState $validatedState `
+                    -AirlockRoot $airlockRoot `
+                    -LauncherPath $preflight.LauncherPath `
+                    -StatePath $statePath
+                $cleanupPerformed = $true
+            }
+            catch {
+                $cleanupErrors.Add($_.Exception.Message)
+            }
+        }
+        else {
+            $cleanupErrors.Add('No verified session identity was available for guarded cleanup.')
+        }
+    }
+    elseif ($null -ne $sessionRoot -and (Test-Path -LiteralPath $sessionRoot -PathType Container)) {
+        try {
+            Assert-AirlockNoReparsePoint -Path $sessionRoot -Root $airlockRoot
+            Remove-Item -LiteralPath $sessionRoot -Recurse -Force
+            $cleanupPerformed = $true
+        }
+        catch {
+            $cleanupErrors.Add("Pre-launch staging cleanup failed: $($_.Exception.Message)")
+        }
+    }
+
+    if ($cleanupErrors.Count -gt 0) {
+        throw "CRITICAL: Airlock launch failed and cleanup could not be proven. Original failure: $launchError Cleanup: $($cleanupErrors -join ' | ')"
+    }
+    if ($cleanupPerformed) {
+        throw "Airlock launch failed; its session was stopped or confirmed absent and owned staging was removed. Original failure: $launchError"
+    }
+    throw
 }
 finally {
     if ($ownsMutex) { $mutex.ReleaseMutex() }

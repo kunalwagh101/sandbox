@@ -11,6 +11,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $startScript = Join-Path $repoRoot 'scripts\Start-Airlock.ps1'
+$stopScript = Join-Path $repoRoot 'scripts\Stop-Airlock.ps1'
 . (Join-Path $repoRoot 'scripts\Airlock.Common.ps1')
 
 if ([string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) { throw 'LOCALAPPDATA is unavailable.' }
@@ -48,22 +49,17 @@ function Get-Median {
 
 function Stop-MeasuredLaunch {
     param([Parameter(Mandatory = $true)][object]$Launch)
-    if ($Launch.LaunchMode -eq 'managed-cli') {
-        if ([string]::IsNullOrWhiteSpace([string]$Launch.SandboxId)) { return }
-        $stopOutput = @(& (Join-Path $env:SystemRoot 'System32\wsb.exe') stop --id $Launch.SandboxId --raw 2>&1)
-        if ($LASTEXITCODE -ne 0) { throw "wsb stop failed: $(($stopOutput | Out-String).Trim())" }
-        return
+    $stop = & $stopScript -TimeoutSeconds 60 -Confirm:$false
+    if ($stop.Status -notin @('stopped', 'reconciled')) {
+        throw "Benchmark cleanup returned unexpected status '$($stop.Status)'."
     }
-    if ($Launch.LaunchMode -ne 'legacy-wsb' -or [int]$Launch.ProcessId -le 0) { return }
-    $state = Get-Content -LiteralPath $Launch.StatePath -Raw -Encoding UTF8 | ConvertFrom-Json
-    $process = Get-CimInstance -ClassName Win32_Process -Filter "ProcessId=$([int]$state.processId)" -ErrorAction SilentlyContinue
-    if ($null -eq $process) { return }
-    if ([string]::IsNullOrWhiteSpace([string]$process.ExecutablePath) -or
-        -not [IO.Path]::GetFullPath([string]$process.ExecutablePath).Equals([IO.Path]::GetFullPath([string]$state.processExecutablePath), [StringComparison]::OrdinalIgnoreCase) -or
-        [string]$process.CreationDate -cne [string]$state.processCreationDate) {
-        throw "Refusing benchmark cleanup for PID $($state.processId): legacy process identity changed."
+    if (Test-Path -LiteralPath $Launch.StatePath) {
+        throw 'Benchmark cleanup left active-session.json after confirmed stop.'
     }
-    Stop-Process -Id ([int]$state.processId) -Force -ErrorAction Stop
+    $sessionRoot = Join-Path (Join-Path $airlockRoot 'sessions') ([string]$Launch.SessionKey)
+    if (Test-Path -LiteralPath $sessionRoot) {
+        throw "Benchmark cleanup left owned staging for session $($Launch.SessionKey)."
+    }
 }
 
 $preflight = & $startScript -PreflightOnly
@@ -71,6 +67,7 @@ $runs = New-Object Collections.Generic.List[object]
 
 for ($index = 1; $index -le 3; $index++) {
     $launch = $null
+    $stopFailed = $false
     $timer = [Diagnostics.Stopwatch]::StartNew()
     $baselineFreeMB = Get-FreePhysicalMemoryMB
     $minimumFreeMB = $baselineFreeMB
@@ -134,9 +131,13 @@ for ($index = 1; $index -le 3; $index++) {
             catch {
                 $record.errors += $_.Exception.Message
                 $record.status = 'failed'
+                $stopFailed = $true
             }
         }
         $runs.Add([PSCustomObject]$record)
+    }
+    if ($stopFailed) {
+        break
     }
 }
 

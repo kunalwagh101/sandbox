@@ -27,6 +27,7 @@ jobs:
         run: |
           ./tests/Invoke-SourceAcceptance.ps1
           ./tests/Invoke-CompatibilityAcceptance.ps1
+          ./tests/Invoke-LifecycleAcceptance.ps1
 
   powershell-source:
     runs-on: windows-latest
@@ -61,5 +62,6 @@ jobs:
         run: |
           .\tests\Invoke-SourceAcceptance.ps1
           .\tests\Invoke-CompatibilityAcceptance.ps1
+          .\tests\Invoke-LifecycleAcceptance.ps1
       - name: Run repository tests
         run: python -m unittest discover -s tests -v

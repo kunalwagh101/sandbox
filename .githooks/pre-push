@@ -12,9 +12,11 @@ fi
 if command -v pwsh >/dev/null 2>&1; then
   pwsh -NoProfile -File tests/Invoke-SourceAcceptance.ps1
   pwsh -NoProfile -File tests/Invoke-CompatibilityAcceptance.ps1
+  pwsh -NoProfile -File tests/Invoke-LifecycleAcceptance.ps1
 elif command -v powershell.exe >/dev/null 2>&1; then
   powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File tests/Invoke-SourceAcceptance.ps1
   powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File tests/Invoke-CompatibilityAcceptance.ps1
+  powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File tests/Invoke-LifecycleAcceptance.ps1
 else
   echo "Airlock pre-push requires pwsh or powershell.exe to execute security behaviour." >&2
   exit 1

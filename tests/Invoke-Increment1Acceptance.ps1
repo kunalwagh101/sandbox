@@ -8,8 +8,10 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $startScript = Join-Path $repoRoot 'scripts\Start-Airlock.ps1'
+$stopScript = Join-Path $repoRoot 'scripts\Stop-Airlock.ps1'
 $initializeScript = Join-Path $repoRoot 'scripts\Initialize-Airlock.ps1'
 $profileScript = Join-Path $repoRoot 'scripts\New-AirlockProfile.ps1'
+. (Join-Path $repoRoot 'scripts\Airlock.Lifecycle.ps1')
 $airlockRoot = Join-Path $env:LOCALAPPDATA 'Airlock'
 $policyPath = Join-Path $airlockRoot 'policy.lock.json'
 
@@ -109,6 +111,7 @@ function Test-LiveLaunch {
     $launch = & $startScript
     Assert-Acceptance -Condition ($launch.Status -eq 'started') -Message 'Airlock did not report a started sandbox.'
     $state = $null
+    $validatedState = $null
     try {
         if ($launch.LaunchMode -eq 'managed-cli') {
             Assert-Acceptance -Condition (-not [string]::IsNullOrWhiteSpace([string]$launch.SandboxId)) -Message 'Managed launch recorded no Sandbox ID.'
@@ -135,27 +138,24 @@ function Test-LiveLaunch {
 
         $state = Get-Content -LiteralPath $launch.StatePath -Raw -Encoding UTF8 | ConvertFrom-Json
         Assert-Acceptance -Condition ($state.launchMode -eq $launch.LaunchMode) -Message 'Launch mode differs between result and state.'
+        $validatedState = Assert-AirlockSessionState -State $state -AirlockRoot $airlockRoot
+        $launcher = Get-AirlockLauncherPathForState -ValidatedState $validatedState
+        Assert-Acceptance `
+            -Condition (Test-AirlockSessionActive -ValidatedState $validatedState -LauncherPath $launcher) `
+            -Message 'Recorded Airlock session is not active after launch.'
         if ($launch.LaunchMode -eq 'managed-cli') {
-            $raw = (& (Join-Path $env:SystemRoot 'System32\wsb.exe') list --raw 2>&1 | Out-String)
-            $runningStatuses = [regex]::Matches($raw, '(?i)"(?:status|state)"\s*:\s*"running"')
-            Assert-Acceptance -Condition ($runningStatuses.Count -eq 1) -Message 'Exactly one running Windows Sandbox was not observed.'
-            Assert-Acceptance -Condition ($raw.IndexOf([string]$launch.SandboxId, [StringComparison]::OrdinalIgnoreCase) -ge 0) -Message 'Recorded Sandbox ID is absent from the runtime list.'
+            Assert-Acceptance -Condition ($validatedState.SandboxId -ceq [string]$launch.SandboxId) -Message 'Managed Sandbox ID differs between launch and validated state.'
         }
         else {
             $null = Assert-LegacyProcessIdentity -State $state
         }
     }
     finally {
-        if ($launch.LaunchMode -eq 'managed-cli' -and -not [string]::IsNullOrWhiteSpace([string]$launch.SandboxId)) {
-            $stopOutput = @(& (Join-Path $env:SystemRoot 'System32\wsb.exe') stop --id $launch.SandboxId --raw 2>&1)
-            if ($LASTEXITCODE -ne 0) {
-                throw "Acceptance cleanup could not stop Sandbox $($launch.SandboxId): $(($stopOutput | Out-String).Trim())"
-            }
-        }
-        elseif ($launch.LaunchMode -eq 'legacy-wsb' -and $null -ne $state) {
-            $process = Assert-LegacyProcessIdentity -State $state
-            Stop-Process -Id ([int]$process.ProcessId) -Force -ErrorAction Stop
-        }
+        $stop = & $stopScript -TimeoutSeconds 60 -Confirm:$false
+        Assert-Acceptance -Condition ($stop.Status -in @('stopped', 'reconciled')) -Message "Acceptance cleanup returned '$($stop.Status)'."
+        Assert-Acceptance -Condition (-not (Test-Path -LiteralPath $launch.StatePath)) -Message 'Acceptance cleanup left active-session.json.'
+        $ownedSession = Join-Path (Join-Path $airlockRoot 'sessions') ([string]$launch.SessionKey)
+        Assert-Acceptance -Condition (-not (Test-Path -LiteralPath $ownedSession)) -Message 'Acceptance cleanup left owned session staging.'
     }
 }
 
