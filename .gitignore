@@ -1,5 +1,62 @@
+# Python / test artefacts
 __pycache__/
 *.py[cod]
 .coverage
 .pytest_cache/
 dist/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+*.crt
+*.cer
+*.der
+*.jks
+*.keystore
+*.secrets.*
+secrets/
+credentials/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Logs / temporary files
+*.log
+*.tmp
+*.temp
+*.bak
+*.swp
+~$*
+
+# Local Airlock runtime state / evidence that may contain machine paths
+Airlock/
+.local/
+local-state/
+active-session.json
+policy.lock.json
+increment-1-benchmark.json
+provision-result.json
+
+# Do not redistribute third-party installer binaries through this repository
+installers/*.exe
+installers/*.msi
+installers/*.msix
+installers/*.appx
+installers/*.appxbundle
+installers/*.zip
+installers/*.7z
+
+# Common credential/config artefacts
+*.kubeconfig
+.aws/
+.azure/
+.ssh/
