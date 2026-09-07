@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Open source
+
+- Licensed Airlock under Apache License 2.0.
+- Added contribution, security, support, and community conduct policies.
+- Added a public threat model defining assets, trust boundaries, security goals,
+  explicit non-goals, Windows 10/11 lifecycle assurance, and fail-closed invariants.
+- Added structured bug, feature, and pull-request templates with responsible security
+  reporting guidance.
+- Hardened `.gitignore` against secrets, local Airlock state, certificates/keys, and
+  accidental redistribution of third-party installer binaries.
+- Updated the README with security defaults, residual-risk language, open-source
+  contribution paths, and licensing information.
+
 ### Repair register
 
 - Added the approved AUDIT-2026-08-28 register with AL-01 through AL-23 mapped to four

@@ -4,11 +4,42 @@ Airlock launches Brave inside a strict, offline Windows Sandbox without ambient 
 to the host user profile, Desktop, Documents, clipboard, microphone, camera, printers,
 GPU, or network.
 
+Airlock is **open source under the Apache License 2.0**. Contributions are welcome, but
+this is security-sensitive software: please read [CONTRIBUTING.md](CONTRIBUTING.md),
+[SECURITY.md](SECURITY.md), and the public [threat model](docs/THREAT_MODEL.md) before
+changing or relying on a security boundary.
+
+> **Security scope:** Airlock reduces exposure to software running inside Windows Sandbox.
+> It does not claim to defend against vulnerabilities in Windows, Hyper-V, Windows Sandbox,
+> a compromised host administrator/kernel/firmware, or files the user deliberately maps
+> into the guest. See `docs/THREAT_MODEL.md` for the complete boundary and residual risks.
+
 **Delivery status:** Increment 0 is DONE. Increment 1 remains evidence-gated. The
 fail-safe lifecycle repair `S-06.03.01` is IN_REVIEW after its portable source boundary
 passed GitHub Actions run 33473134496 on PowerShell 7 and Windows PowerShell 5.1. The
 Windows 10 compatibility repair `S-06.05.01` is also IN_REVIEW. Neither can be called
 DONE until the target-host runs named in OQ-14 and OQ-15 pass.
+
+## Security defaults
+
+The strict profile explicitly configures:
+
+| Control | Default |
+|---|---|
+| Host filesystem | No ambient host-profile access; only explicit narrow mappings |
+| Networking | Disabled |
+| Clipboard | Disabled |
+| Microphone/audio input | Disabled |
+| Camera/video input | Disabled |
+| Printers | Disabled |
+| vGPU | Disabled |
+| Bootstrap mapping | Fresh per-session and read-only |
+| Result mapping | Fresh per-session and writable; treated as untrusted output |
+| ProtectedClient | Enabled |
+| Installer trust | Authenticode publisher + product + exact SHA-256 pin |
+
+Security claims are evidence-gated. A source test passing is not treated as proof of native
+Windows Sandbox behaviour when a live target-host check is required.
 
 ## Supported host modes
 
@@ -154,6 +185,29 @@ successful result. Existing package and policy locks remain valid because the st
 `.wsb` profile and pinned package contract did not change. Do not delete
 `active-session.json` manually while the recorded guest may still be active, and never
 kill a legacy PID that has not been identity-checked.
+
+## Open-source development
+
+Airlock accepts issues and pull requests from the community.
+
+- Read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting code.
+- Use the structured GitHub issue templates for bugs and feature requests.
+- For usage/support questions, see [SUPPORT.md](SUPPORT.md).
+- For suspected vulnerabilities, follow [SECURITY.md](SECURITY.md) and **do not post
+  unpatched exploit details in a public issue**.
+- Community participation is governed by [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+- The security design and non-goals are documented in
+  [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md).
+
+Do not commit Brave installers, credentials, keys, local Airlock state, customer/private
+data, or other machine-specific secrets. The repository intentionally stores only source,
+reviewable policy, tests, documentation, and non-sensitive evidence.
+
+## License
+
+Copyright in individual contributions remains with their respective copyright holders.
+The project is licensed under the [Apache License 2.0](LICENSE). Contributions submitted
+for inclusion are licensed under the same terms unless explicitly agreed otherwise.
 
 ## Delivery method
 
