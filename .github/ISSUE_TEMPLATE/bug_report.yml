@@ -1,0 +1,71 @@
+name: Bug report
+description: Report a reproducible Airlock defect
+title: "[Bug]: "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not post unpatched vulnerability details here. Follow SECURITY.md for security reports.
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version/build
+      description: Example: Windows 10 Pro 22H2 build 19045 AMD64
+    validations:
+      required: true
+  - type: input
+    id: commit
+    attributes:
+      label: Airlock commit SHA
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Exact command
+      render: powershell
+    validations:
+      required: true
+  - type: dropdown
+    id: stage
+    attributes:
+      label: Failure stage
+      options:
+        - Preflight
+        - Initialization
+        - Launch
+        - Guest provisioning
+        - Shutdown/cleanup
+        - Tests/CI
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: What happened?
+      description: Remove secrets and private data before posting logs.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I removed credentials, tokens, keys, customer/private data, and sensitive local paths from this report.
+          required: true
+        - label: I understand that security vulnerabilities should be reported through SECURITY.md instead of this public issue.
+          required: true
